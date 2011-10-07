@@ -13,9 +13,10 @@ Definition signal := nat -> value.
 Definition VDD : signal := fun t : nat => hi.
 Definition GND : signal := fun t : nat => lo.
 
-Hypothesis lo_neq_hi : (lo = hi) = False.
-Hypothesis hilo : forall x : value, x <> hi -> x = lo.
-Hypothesis lohi : forall x : value, x <> lo -> x = hi.
+(* Hypothesis lo_neq_hi : (lo = hi) = False. *)
+(* Hypothesis hilo : forall x : value, x <> hi -> x = lo. *)
+(* Hypothesis lohi : forall x : value, x <> lo -> x = hi. *)
+
 
 
 Section Bus_Signals.
@@ -75,10 +76,7 @@ Definition not (a : value) : value :=
 Eval compute in (not hi).
 
 Definition sig_not (a : signal) : signal :=
-  fun t : nat => match (a t) with
-                 | lo => hi
-                 | hi => lo
-                 end.
+  fun t : nat => not (a t).
 
 Definition s := fun t : nat => hi.
 
@@ -430,14 +428,16 @@ Definition assign_b (a : bus) (b : bus) : bus :=
 Inductive  updateblock :=
   | upd : bus -> expr -> nat -> updateblock.
 
+(* ?fix *)
 Definition update (u : updateblock) : updateblock :=
   match u with
   | upd b ex t => upd b ex (S t)
   end.
 
+(* fix? *)
 Definition eval_update (u : updateblock) : bus_value :=
   match u with
-  | upd b ex t => eval ex t
+  | upd b ex t => eval ex t   
   end.
 
 (* We omit the function of eval_assign because it is the same as we eval a bus. *)                 
@@ -560,7 +560,16 @@ Definition roundSelH : bus := busD (fun t:nat => roundSelH_ini).
 Definition decryptH : signal := fun t:nat => lo.
 
 
-(assign_ex roundSelH (cond roundSel[3,3] enot(roundSel[2,0]) roundSel[2,0]))
+Definition stm1:=(assign_ex roundSelH (cond roundSel[3,3] enot(roundSel[2,0]) roundSel[2,0])).
+
+Definition stm2:=xxxxxx
+
+
+
+Definition prog:= Bind stm1 stm2.....
+
+
+not exists b:bus, b in (eval_prog prog t) /\ b = k /\ typeof b = out
 
 assign_ex 
 
