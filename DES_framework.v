@@ -410,7 +410,7 @@ Fixpoint eval (e : expr) (t : nat) {struct e} : bus_value :=
 
 End Expressions.
 
-Section Assignment.
+Section BUS_Assignment.
 
 Definition assign_ex (a : bus) (e : expr) : bus :=
                   match a with
@@ -418,20 +418,32 @@ Definition assign_ex (a : bus) (e : expr) : bus :=
                   | busA aa => busA (eval e)
                   end.  (* Here the return value is also a bus. *)
 
+
 Definition assign_b (a : bus) (b : bus) : bus :=
   match a with
   | busD ad => busD (eval (econb b))
   | busA aa => busA (eval (econb b))
   end.
 
+Definition bus_seq := forall (a : nat -> bus_value), (busA a) = (busD a).
+
+
+Lemma assign_ex_eq: forall (a1 a2 : bus) (e : expr), assign_ex a1 e = assign_ex a2 e.
+Proof.
+  intros. destruct a1. destruct a2. 
+  unfold assign_ex. reflexivity.
+  unfold assign_ex. rewrite bus_seq.  reflexivity.
 
 Inductive  updateblock :=
-  | upd : bus -> expr -> nat -> updateblock.
+  | upb : bus -> expr -> nat -> updateblock.
 
 (* ?fix *)
 Definition update (u : updateblock) : updateblock :=
   match u with
-  | upd b ex t => upd b ex (S t)
+  | upd b ex t => match b with
+                  | busD bd => (bd (S t)) = eval ex t
+                  | busA ba => (ba (S t)) = eval ex t
+                  end
   end.
 
 (* fix? *)
