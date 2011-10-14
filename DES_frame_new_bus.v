@@ -21,24 +21,27 @@ Definition sliceA (b : bus) (p1 p2 : nat) : bus :=
 Definition sliceD (b : bus) (p1 p2 : nat) : bus :=
   fun t : nat => rev (firstn (p1-p2+1) (skipn p2 (rev (b t)))).
 
+Definition slice (b: bus)(p1 p2:nat):bus :=
+  if le_dec p1 p2 then sliceA b p1 p2 else sliceD b p1 p2.
+
 
 Definition v := lo::lo::hi::hi::lo::nil.
 
 Definition b := fun t:nat => v.
 Definition b2 := fun t:nat => v.
 
-Eval compute in sliceA b 1 3.
+Eval compute in slice b 1 3.
 
 
-Eval compute in sliceD b2 4 0.
+Eval compute in slice b2 4 0.
 
 (* Notation "b @( m , n ) " := (bus_slice b m n ) (at level 50, left associativity). *)
-Notation "b [ m , n ] " := (sliceD b m n ) (at level 50, left associativity).
-Notation "b @ [ m , n ] " := (sliceA b m n ) (at level 50, left associativity).
+Notation "b [ m , n ] " := (slice b m n ) (at level 50, left associativity).
+(* Notation "b @ [ m , n ] " := (sliceA b m n ) (at level 50, left associativity). *)
 
 
 Eval compute in  (b [4,1] [3,2]).
-Eval compute in (b @[1,4] [3,2]).
+Eval compute in (b [1,4] [3,2]).
 
 Definition bus_length (b : bus) :=
   fun t : nat => length (b t).
