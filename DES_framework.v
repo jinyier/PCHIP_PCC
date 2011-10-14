@@ -425,7 +425,7 @@ Definition assign_b (a : bus) (b : bus) : bus :=
   | busA aa => busA (eval (econb b))
   end.
 
-Definition bus_seq := forall (a : nat -> bus_value), (busA a) = (busD a).
+Axiom bus_seq : forall (a : nat -> bus_value), (busA a) = (busD a).
 
 
 Lemma assign_ex_eq: forall (a1 a2 : bus) (e : expr), assign_ex a1 e = assign_ex a2 e.
@@ -433,6 +433,10 @@ Proof.
   intros. destruct a1. destruct a2. 
   unfold assign_ex. reflexivity.
   unfold assign_ex. rewrite bus_seq.  reflexivity.
+  destruct a2.
+  unfold assign_ex. rewrite bus_seq. reflexivity.
+  unfold assign_ex. reflexivity.
+Qed.
 
 Inductive  updateblock :=
   | upb : bus -> expr -> nat -> updateblock.
@@ -440,7 +444,7 @@ Inductive  updateblock :=
 (* ?fix *)
 Definition update (u : updateblock) : updateblock :=
   match u with
-  | upd b ex t => match b with
+  | upb b ex t => match b with
                   | busD bd => (bd (S t)) = eval ex t
                   | busA ba => (ba (S t)) = eval ex t
                   end

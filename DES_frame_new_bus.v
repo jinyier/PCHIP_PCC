@@ -327,13 +327,62 @@ Fixpoint eval (e : expr) (t : nat) {struct e} : bus_value :=
 
 End Expressions.
 
+Section Sub_Module.
+(* a.k.a. RTL code file *)
+
+Inductive code :=
+  | outs : signal -> code
+  | outb : bus -> code
+  | ins : signal -> code
+  | inb : bus -> code
+  | wires : signal -> code
+  | wireb : bus -> code
+  | regs : signal -> code
+  | regb : bus -> code
+  | assignb_ex : bus -> expr -> code
+  | assignb_b : bus -> bus -> code
+  | case3 : bus -> bus -> bus -> bus -> bus -> bus -> bus -> bus -> bus -> bus -> code
+  | codepile : code -> code -> code.
+
+Notation " c1 ; c2 " := (codepile c1 c2) (at level 50, left associativity).
+
+Variables K_sub K roundSel K1 K2 K3 K4 K5 K6 K7 K8 roundSelH : bus.
+Variables decrypt decryptH : bus.
+
+Definition key_selh :=
+  outb K_sub;
+  inb K.
+
+Definition eval_caseb3 (c : caseblockb3) (t : nat) : bus_value :=
+  match c with
+  | cb a sel b1 b2 b3 b4 b5 b6 b7 b8 =>
+                  match eval (econb sel) t with
+                  | lo::lo::lo::nil => eval (econb (assign_b a b1)) t
+                  | lo::lo::hi::nil => eval (econb (assign_b a b2)) t
+                  | lo::hi::lo::nil => eval (econb (assign_b a b3)) t
+                  | lo::hi::hi::nil => eval (econb (assign_b a b4)) t
+                  | hi::lo::lo::nil => eval (econb (assign_b a b5)) t
+                  | hi::lo::hi::nil => eval (econb (assign_b a b6)) t
+                  | hi::hi::lo::nil => eval (econb (assign_b a b7)) t
+                  | hi::hi::hi::nil => eval (econb (assign_b a b8)) t
+                  | _ => eval (econb (assign_b a b1)) t
+                  end
+  end.
+
 
 Section Bus_Assignment.
 
 (* ??? *)
-Definition assign_ex (b : bus) (e : expr) : bus :=
+Definition assign_ex (e : expr) : bus :=
 (*  forall t : nat, (b t) = (eval e t). *)
   eval e.
+
+Lemma assign_eq : forall (a : bus) (e : expr) (t : nat), a = (assign_ex e) -> (a t) = (eval e t).
+Proof.
+  intros.
+  unfold assign_ex in H. rewrite H. reflexivity.
+Qed.
+  
 
 Definition assign_b (b a : bus) : bus :=
 (* forall t : nat, (b t) = (a t). *)
