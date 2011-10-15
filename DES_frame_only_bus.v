@@ -2,6 +2,17 @@
 The BUS definition is re-designed from my previous work not to explicitly 
 include D or A appendix. *)
 
+(* In order to label and track the information flow within the circuit and within 
+each module/sub-module, I need to define two types of bus: bus (normal buses) and
+s_bus (secure bus). Only permutation calculation would remove the secure tag of 
+internal information. The secure tag for top module is predefined (negotiated between
+proof writer and users/designers). 
+As the frist step towards information flow tracking, the secure tag for sub-module is
+also predefined. For example, for "key_selh", the secure tag is only added on 'K'. 
+All outputs of modules/sub-modules should be normal signals with the secure tags removed.
+*)
+
+
 Require Import Bool Arith List.
 Require Omega.
 
@@ -222,6 +233,7 @@ Inductive expr :=
   | exor : expr -> expr -> expr
   | enot : expr -> expr
   | cond : expr -> expr -> expr -> expr
+  | perm : bus -> expr
   | eq : expr -> expr -> expr
   | lt : expr -> expr -> expr
   | gt : expr -> expr -> expr
@@ -267,16 +279,13 @@ Section Sub_Module.
 (* a.k.a. RTL code file *)
 
 Inductive code :=
-  | outs : signal -> code
   | outb : bus -> code
-  | ins : signal -> code
   | inb : bus -> code
-  | wires : signal -> code
   | wireb : bus -> code
-  | regs : signal -> code
   | regb : bus -> code
   | assign_ex : bus -> expr -> code
   | assign_b : bus -> bus -> code
+  | assigns_ex : 
   | assign_case3 : bus -> expr -> code
   | codepile : code -> code -> code.
 
