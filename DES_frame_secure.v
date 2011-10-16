@@ -20,7 +20,8 @@ Inductive value := lo | hi.
 Inductive sensitivity := secure | normal.
 (* Definition signal := nat -> value.  obsolete *)
 
-Section Bus_Signals.
+(*Section Bus_Signals.*)
+Section key_selh.
 
 Definition bus_value := list value.
 Definition bus := nat -> (bus_value * sensitivity).
@@ -287,10 +288,10 @@ Proof.
   intros. rewrite H. apply bus_eq_refl.
 Qed.
 
-End Bus_Signals.
+(*End Bus_Signals.
 
 
-Section Expressions.
+Section Expressions.*)
 
 Inductive expr :=
   | econv : bus_value -> expr
@@ -341,10 +342,16 @@ Fixpoint eval (e : expr) (t : nat) {struct e} : bus_value*sensitivity :=
                   end
   end.
 
-End Expressions.
+Definition expr_sen (e : expr) (t : nat) : sensitivity :=
+  snd (eval e t).
 
-Section Sub_Module.
-(* a.k.a. RTL code file *)
+Definition bus_sen (b : bus) (t : nat) : sensitivity :=
+  snd (eval (econb b) t).
+
+(*End Expressions.
+
+
+Section code_expressions.*)
 
 Inductive code :=
   | outb : bus -> code
@@ -353,19 +360,103 @@ Inductive code :=
   | regb : bus -> code
   | assign_ex : bus -> expr -> code
   | assign_b : bus -> bus -> code
-  | perm_b : bus -> code
+  (*| perm_b : bus -> code*)
   | assign_case3 : bus -> expr -> code
   | codepile : code -> code -> code.
 
 Notation " c1 ; c2 " := (codepile c1 c2) (at level 50, left associativity).
 
+(* Let's only consider the case that each module only contains one output bus.
+It holds for all modules in DES example. 
+Or more precisely, return the sensitivity of the specific bus (manually iterate. *)
+Fixpoint chk_code_sen (c : code) (t : nat) : sensitivity :=
+  match c with
+  | outb b => normal
+  | inb b => normal
+  | wireb b => normal
+  | regb b => normal
+  | assign_ex b ex => expr_sen ex t
+  | assign_b b1 b2 => bus_sen b2 t
+  | assign_case3 b ex => expr_sen ex t
+  | codepile c1 c2 => boptag (chk_code_sen c1 t) (chk_code_sen c2 t)
+  end.
+  
+(*End code_expressions.
+
+
+Section Sub_Module_key_selh.*)
+(* a.k.a. RTL code file *)
+
+
 Variables K_sub K roundSel K1 K2 K3 K4 K5 K6 K7 K8 roundSelH : bus.
 Variables decrypt decryptH : bus.
 
-Definition key_selh :=
-  outb K_sub;
-  inb K......
+Axiom secret_K : forall (t : nat), bus_sen K t = secure.
+Axiom normal_roundSel: forall (t : nat), snd (roundSel t) = normal.
+Axiom normal_roundSel20: forall (t : nat), snd ((roundSel [2,0]) t) = normal.
+Axiom normal_roundSel33: forall (t : nat), snd ((roundSel [3,3]) t) = normal.
+Axiom normal_decrypt : forall (t : nat), snd (decrypt t) = normal.
 
+
+Definition key_selh : code :=
+  (outb K_sub) ;  (inb K);
+  inb roundSel;
+  inb decrypt;
+  wireb K1;
+  wireb K2;
+  wireb K3;
+  wireb K4;
+  wireb K5;
+  wireb K6;
+  wireb K7;
+  wireb K8;
+  wireb roundSelH;
+  wireb decryptH;
+ 
+  assign_ex (roundSelH [2,0]) (cond (econb (roundSel [3,3])) (econb (bus_bit_not (roundSel [2,0]))) (econb (roundSel [2,0])));
+  assign_ex decryptH (econb (bus_bit_xor decrypt (roundSel [3,3])));
+
+  assign_case3 K_sub (case3 (econb roundSelH) (econb K1) (econb K2) (econb K3) (econb K4)
+                                               (econb K5) (econb K6) (econb K7) (econb K8));
+  
+  assign_ex K8 (cond (econb decryptH) (perm K) (perm K));
+  assign_ex K7 (cond (econb decryptH) (perm K) (perm K));
+  assign_ex K6 (cond (econb decryptH) (perm K) (perm K));
+  assign_ex K5 (cond (econb decryptH) (perm K) (perm K));
+  assign_ex K4 (cond (econb decryptH) (perm K) (perm K));
+  assign_ex K3 (cond (econb decryptH) (perm K) (perm K));
+  assign_ex K2 (cond (econb decryptH) (perm K) (perm K));
+  assign_ex K1 (cond (econb decryptH) (perm K) (perm K)).
+
+Definition test_K1 : code :=
+  assign_ex K1 (cond (econb decryptH) (perm K) (perm K)).
+  
+Lemma normal_K1: forall (t : nat), chk_code_sen test_K1 t = normal.
+Proof.
+  intros. unfold chk_code_sen. unfold test_K1.
+  unfold expr_sen. simpl. 
+  destruct (bv_eq_0 (fst (decryptH t))). 
+  trivial. trivial.
+Qed.
+
+Axiom assign_sen_trans : forall (t : nat) (b : bus) (e : expr), 
+  (assign_ex b e) -> expr_sen e = bus_sen b.
+
+Lemma normal_K1': forall (t : nat), snd (K1 t) = normal.
+Proof.
+  intros. apply normal_K1.
+
+Theorem no_leaking_key_selh : forall (t : nat), chk_code_sen key_selh t = normal.
+Proof.
+  intros. 
+  unfold chk_code_sen. unfold key_selh. 
+  unfold expr_sen. unfold eval.
+  destruct (bv_eq_0 (fst (decryptH t))); simpl.
+  destruct (fst (roundSelH t)); simpl.
+  destruct (bv_eq_0 (fst ((roundSel [3, 3]) t))); simpl.
+  rewrite normal_roundSel20. rewrite normal_roundSel33. rewrite normal_decrypt.
+  simpl. rewrite normal_K1. 
+  
 
 
 
