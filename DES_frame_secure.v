@@ -430,7 +430,6 @@ Definition key_selh : code :=
 
 Definition test_K1 : code :=
   assign_ex K1 (cond (econb decryptH) (perm K) (perm K)).
-  
 Lemma normal_K1: forall (t : nat), chk_code_sen test_K1 t = normal.
 Proof.
   intros. unfold chk_code_sen. unfold test_K1.
@@ -438,13 +437,94 @@ Proof.
   destruct (bv_eq_0 (fst (decryptH t))). 
   trivial. trivial.
 Qed.
+Axiom normal_K1' : forall (t : nat), (snd (K1 t)) = chk_code_sen test_K1 t.
 
-Axiom assign_sen_trans : forall (t : nat) (b : bus) (e : expr), 
-  (assign_ex b e) -> expr_sen e = bus_sen b.
-
-Lemma normal_K1': forall (t : nat), snd (K1 t) = normal.
+(* K2 *)
+Definition test_K2 : code :=
+  assign_ex K2 (cond (econb decryptH) (perm K) (perm K)).
+Lemma normal_K2: forall (t : nat), chk_code_sen test_K2 t = normal.
 Proof.
-  intros. apply normal_K1.
+  intros. unfold chk_code_sen. unfold test_K2.
+  unfold expr_sen. simpl. 
+  destruct (bv_eq_0 (fst (decryptH t))). 
+  trivial. trivial.
+Qed.
+Axiom normal_K2' : forall (t : nat), (snd (K2 t)) = chk_code_sen test_K2 t.
+
+Definition test_K3 : code :=
+  assign_ex K3 (cond (econb decryptH) (perm K) (perm K)).
+Lemma normal_K3: forall (t : nat), chk_code_sen test_K3 t = normal.
+Proof.
+  intros. unfold chk_code_sen. unfold test_K3.
+  unfold expr_sen. simpl. 
+  destruct (bv_eq_0 (fst (decryptH t))). 
+  trivial. trivial.
+Qed.
+Axiom normal_K3' : forall (t : nat), (snd (K3 t)) = chk_code_sen test_K3 t.
+
+Definition test_K4 : code :=
+  assign_ex K4 (cond (econb decryptH) (perm K) (perm K)).
+Lemma normal_K4: forall (t : nat), chk_code_sen test_K4 t = normal.
+Proof.
+  intros. unfold chk_code_sen. unfold test_K4.
+  unfold expr_sen. simpl. 
+  destruct (bv_eq_0 (fst (decryptH t))). 
+  trivial. trivial.
+Qed.
+Axiom normal_K4' : forall (t : nat), (snd (K4 t)) = chk_code_sen test_K4 t.
+
+Definition test_K5 : code :=
+  assign_ex K5 (cond (econb decryptH) (perm K) (perm K)).
+Lemma normal_K5: forall (t : nat), chk_code_sen test_K5 t = normal.
+Proof.
+  intros. unfold chk_code_sen. unfold test_K5.
+  unfold expr_sen. simpl. 
+  destruct (bv_eq_0 (fst (decryptH t))). 
+  trivial. trivial.
+Qed.
+Axiom normal_K5' : forall (t : nat), (snd (K5 t)) = chk_code_sen test_K5 t.
+
+Definition test_K6 : code :=
+  assign_ex K6 (cond (econb decryptH) (perm K) (perm K)).
+Lemma normal_K6: forall (t : nat), chk_code_sen test_K6 t = normal.
+Proof.
+  intros. unfold chk_code_sen. unfold test_K6.
+  unfold expr_sen. simpl. 
+  destruct (bv_eq_0 (fst (decryptH t))). 
+  trivial. trivial.
+Qed.
+Axiom normal_K6' : forall (t : nat), (snd (K6 t)) = chk_code_sen test_K6 t.
+
+Definition test_K7 : code :=
+  assign_ex K7 (cond (econb decryptH) (perm K) (perm K)).
+Lemma normal_K7: forall (t : nat), chk_code_sen test_K7 t = normal.
+Proof.
+  intros. unfold chk_code_sen. unfold test_K7.
+  unfold expr_sen. simpl. 
+  destruct (bv_eq_0 (fst (decryptH t))). 
+  trivial. trivial.
+Qed.
+Axiom normal_K7' : forall (t : nat), (snd (K7 t)) = chk_code_sen test_K7 t.
+
+Definition test_K8 : code :=
+  assign_ex K8 (cond (econb decryptH) (perm K) (perm K)).
+Lemma normal_K8: forall (t : nat), chk_code_sen test_K8 t = normal.
+Proof.
+  intros. unfold chk_code_sen. unfold test_K8.
+  unfold expr_sen. simpl. 
+  destruct (bv_eq_0 (fst (decryptH t))). 
+  trivial. trivial.
+Qed.
+Axiom normal_K8' : forall (t : nat), (snd (K8 t)) = chk_code_sen test_K8 t.
+
+
+
+(* Axiom assign_sen_trans : forall (t : nat) (b : bus) (e : expr), 
+  assign_ex b e -> expr_sen e = bus_sen b. *)
+
+(* Lemma normal_K1': forall (t : nat), snd (K1 t) = normal.
+Proof.
+  intros. apply normal_K1.*)
 
 Theorem no_leaking_key_selh : forall (t : nat), chk_code_sen key_selh t = normal.
 Proof.
@@ -455,20 +535,161 @@ Proof.
   destruct (fst (roundSelH t)); simpl.
   destruct (bv_eq_0 (fst ((roundSel [3, 3]) t))); simpl.
   rewrite normal_roundSel20. rewrite normal_roundSel33. rewrite normal_decrypt.
-  simpl. rewrite normal_K1. 
-  
+  simpl. rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  rewrite normal_roundSel20. rewrite normal_roundSel33.
+  rewrite normal_K1'. rewrite normal_K1. rewrite normal_decrypt. simpl. reflexivity.
+  destruct (bv_eq_0 (fst (decryptH t))); simpl.
+  destruct (bv_eq_0 (fst ((roundSel [3, 3]) t))); simpl.
+  rewrite normal_roundSel20. rewrite normal_roundSel33. rewrite normal_decrypt.
+  simpl. destruct v0. destruct b0. rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  destruct b0. rewrite normal_K2'. rewrite normal_K2. simpl. reflexivity.
+  rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  destruct b0. rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  destruct v0. destruct b0. rewrite normal_K3'. rewrite normal_K3. simpl. reflexivity.
+  rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  destruct b0. rewrite normal_K4'. rewrite normal_K4. simpl. reflexivity.
+  rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  destruct b0. rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  destruct v0. destruct b0. rewrite normal_K5'. rewrite normal_K5. simpl. reflexivity.
+  rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  destruct b0. rewrite normal_K6'. rewrite normal_K6. simpl. reflexivity.
+  rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  destruct b0. rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  destruct v0. destruct b0. rewrite normal_K7'. rewrite normal_K7. simpl. reflexivity.
+  rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  destruct b0. rewrite normal_K8'. rewrite normal_K8. simpl. reflexivity.
+  rewrite normal_K1'. rewrite normal_K1. simpl. reflexivity.
+  rewrite normal_roundSel20. rewrite normal_roundSel33. rewrite normal_decrypt.
 
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1. simpl. reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1. simpl. reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1. simpl. reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K2'; rewrite normal_K2; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K3'; rewrite normal_K3; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K4'; rewrite normal_K4; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K5'; rewrite normal_K5; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K6'; rewrite normal_K6; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K7'; rewrite normal_K7; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K8'; rewrite normal_K8; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
 
+  destruct (bv_eq_0 (fst ((roundSel [3, 3]) t))); simpl.
+  rewrite normal_roundSel20. rewrite normal_roundSel33. rewrite normal_decrypt. simpl.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K2'; rewrite normal_K2; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K3'; rewrite normal_K3; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K4'; rewrite normal_K4; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K5'; rewrite normal_K5; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K6'; rewrite normal_K6; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K7'; rewrite normal_K7; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K8'; rewrite normal_K8; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
 
+  rewrite normal_roundSel20. rewrite normal_roundSel33. rewrite normal_decrypt. simpl.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K2'; rewrite normal_K2; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K3'; rewrite normal_K3; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K4'; rewrite normal_K4; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K5'; rewrite normal_K5; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K6'; rewrite normal_K6; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K7'; rewrite normal_K7; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K8'; rewrite normal_K8; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
 
+  destruct (bv_eq_0 (fst ((roundSel [3, 3]) t))); simpl.
+  rewrite normal_roundSel20. rewrite normal_roundSel33. rewrite normal_decrypt. simpl.
+  destruct (fst (roundSelH t)). rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K2'; rewrite normal_K2; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K3'; rewrite normal_K3; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K4'; rewrite normal_K4; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K5'; rewrite normal_K5; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K6'; rewrite normal_K6; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K7'; rewrite normal_K7; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K8'; rewrite normal_K8; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
 
+  rewrite normal_roundSel20. rewrite normal_roundSel33. rewrite normal_decrypt. simpl.
+  destruct (fst (roundSelH t)). rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K2'; rewrite normal_K2; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K3'; rewrite normal_K3; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K4'; rewrite normal_K4; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K5'; rewrite normal_K5; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K6'; rewrite normal_K6; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct v0. destruct b0. rewrite normal_K7'; rewrite normal_K7; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+  destruct b0. rewrite normal_K8'; rewrite normal_K8; reflexivity.
+  rewrite normal_K1'; rewrite normal_K1; reflexivity.
+Qed.
 
-
-
-
-
-
-
+End key_selh.
 
 
 
