@@ -14,7 +14,6 @@ All outputs of modules/sub-modules should be normal signals with the secure tags
 
 
 Require Import Bool Arith List.
-Require Omega.
 
 Inductive value := lo | hi.
 Inductive sensitivity := secure | normal.
@@ -25,8 +24,6 @@ Section crp.
 
 Definition bus_value := list value.
 Definition bus := nat -> (bus_value * sensitivity).
-
-Check bus.
 
 Definition VDD : bus := fun t : nat => (hi::nil, normal).
 Definition GND : bus := fun t : nat => (lo::nil, normal).
@@ -44,29 +41,14 @@ Definition sliceD (b : bus) (p1 p2 : nat) : bus :=
                  end.
 
 
-Definition v := lo::lo::hi::hi::lo::nil.
-
-Definition b := fun t:nat => (v, secure).
-Definition b2 := fun t:nat => (v, normal).
-
-Eval compute in sliceA b 1 3.
-
-
-Eval compute in sliceD b2 4 0.
-
 (* Notation "b @( m , n ) " := (bus_slice b m n ) (at level 50, left associativity). *)
 Notation "b [ m , n ] " := (sliceD b m n ) (at level 50, left associativity).
 Notation "b @ [ m , n ] " := (sliceA b m n ) (at level 50, left associativity).
 
 
-Eval compute in  (b [4,1] [3,2]).
-Eval compute in (b @[1,4] [3,2]).
-
 Definition bus_length (b : bus) :=
   fun t : nat => length (fst (b t)).
                  
-
-Eval compute in (bus_length (b2)).
 
 Definition not (a : value) : value :=
   match a with
@@ -84,11 +66,6 @@ Fixpoint bv_bit_not (a : bus_value) {struct a} : bus_value :=
 Definition bus_bit_not (b : bus) : bus :=
   fun t:nat => (bv_bit_not (fst (b t)), snd (b t)).
 
-Eval compute in b2[3,1].
-Eval compute in bus_bit_not (b2[3,1]).
-
-Definition v2 := lo::hi::lo::lo::lo::nil.
-Definition b3 := fun t:nat => (v2, normal).
 
 Definition uoptag (a : sensitivity) : sensitivity := a.
 Definition boptag (a b : sensitivity) : sensitivity := 
@@ -124,9 +101,6 @@ Definition bus_bit_xor (a b : bus) : bus :=
   fun t:nat => (bv_bit_xor (fst (a t)) (fst (b t)), boptag (snd (a t)) (snd (b t))).
   
 
-Eval compute in bus_bit_xor (b2[2,1]) (b3[3,2]).
-Eval compute in bus_bit_xor (b[2,1]) (b3[3,2]).
-
 Definition and (a b : value) : value :=
   match a with
   | lo => lo
@@ -148,13 +122,6 @@ Fixpoint bv_bit_and  (a b : bus_value) {struct a} : bus_value :=
 Definition bus_bit_and (a b : bus) : bus :=
   fun t:nat => (bv_bit_and (fst (a t)) (fst (b t)), boptag (snd (a t)) (snd (b t))).
 
-
-Eval compute in (b 1).
-Eval compute in b2.
-
-Eval compute in bus_bit_and b2 b3.
-Eval compute in bus_bit_and b2 b.
-
 Definition or (a b : value) :=
   match a with
   | lo => match b with
@@ -174,8 +141,6 @@ Fixpoint bv_bit_or (a b : bus_value) {struct a} : bus_value :=
 
 Definition bus_bit_or (a b : bus) : bus :=
   fun t:nat => (bv_bit_or (fst (a t)) (fst (b t)), boptag (snd (a t)) (snd (b t))).
-
-Eval compute in bus_bit_or b2 b3.
 
 Definition bus_app (a b : bus) : bus :=
   fun t:nat => ((fst (a t)) ++ (fst (b t)), boptag (snd (a t)) (snd (b t))).
@@ -210,8 +175,6 @@ Definition sen_eq (a b : sensitivity) : value :=
 Definition bus_eq (a b : bus) (t : nat) : value :=
   and (bv_eq (fst (a t)) (fst (b t))) (sen_eq (snd (a t)) (snd (b t))).
 
-Eval compute in bus_eq b2 b2.
-
 Fixpoint bv_lt (a b : bus_value) {struct a} :=
   match a with
   | nil => lo
@@ -228,8 +191,6 @@ Fixpoint bv_lt (a b : bus_value) {struct a} :=
 
 Definition bus_lt (a b : bus) (t : nat) : value :=
   bv_lt (fst (a t)) (fst (b t)).    (* Here we assume that the tag of comparison buses are the same. *)
-
-Eval compute in bus_lt b3 b2.
 
 Fixpoint bv_gt (a b : bus_value) {struct a} :=
   match a with
@@ -258,21 +219,6 @@ Fixpoint bv_eq_0 (a : bus_value) {struct a} : value :=
 Definition bus_eq_0 (a : bus) (t : nat) : value :=
   bv_eq_0 (fst (a t)).   (* Here the sensitivity of the bus does not matter. *)
 
-Definition v3 := lo::lo::lo::nil.
-Definition v4 := lo::nil.
-Definition v5 := hi::lo::nil.
-Definition v6 := lo::hi::nil.
-
-
-Eval compute in bv_eq_0 v3.
-Eval compute in bv_eq_0 v4.
-Eval compute in bv_eq_0 v5.
-Eval compute in bv_eq_0 v6.
-
-Eval compute in bus_eq_0 b2 1.
-
-
-Eval compute in bus_gt b2 b2.
 
 Lemma bv_eq_refl : forall (t : nat) (a : bus_value), (bv_eq a a) = hi.
 Proof. 
@@ -370,8 +316,8 @@ Inductive code :=
   | assign_b : bus -> bus -> code
   (*| perm_b : bus -> code*)
   | assign_case3 : bus -> expr -> code
-  | assign_ex_nonblock : bus -> expr -> code    (* added in DES_frame_des.v. *)
-  | assign_b_nonblock : bus -> bus -> code   (* added in DES_frame_des.v. *)
+  | nonblock_assign_ex : bus -> expr -> code    (* added in DES_frame_des.v. *)
+  | nonblock_assign_b : bus -> bus -> code   (* added in DES_frame_des.v. *)
   | module_inst2in : bus ->bus -> bus -> code    (* added in DES_frame_des.v to deal with module instantiation. *)
   | module_inst3in : bus -> bus -> bus -> bus -> code  (* added in DES_frame_des.v to deal with module instantiation. *)
   | codepile : code -> code -> code.
@@ -390,8 +336,8 @@ Fixpoint chk_code_sen (c : code) (t : nat) : sensitivity :=
   | assign_ex b ex => expr_sen ex t
   | assign_b b1 b2 => bus_sen b2 t
   | assign_case3 b ex => expr_sen ex t
-  | assign_ex_nonblock b ex => expr_sen ex t  (* added in DES_frame_des.v. *)
-  | assign_b_nonblock b1 b2 => bus_sen b2 t  (* added in DES_frame_des.v. *)
+  | nonblock_assign_ex b ex => expr_sen ex t  (* added in DES_frame_des.v. *)
+  | nonblock_assign_b b1 b2 => bus_sen b2 t  (* added in DES_frame_des.v. *)
   | module_inst2in bout b1 b2 => normal    (* added in DES_frame_des.v to deal with module instantiation. *)
   | module_inst3in bout b1 b2 b3 => normal  (* added in DES_frame_des.v to deal with module instantiation. *)
   | codepile c1 c2 => boptag (chk_code_sen c1 t) (chk_code_sen c2 t)
@@ -453,8 +399,8 @@ Definition des : code :=
   
   module_inst2in out Lout K_sub;
 
-  assign_ex_nonblock L (econb Lout);
-  assign_ex_nonblock R (econb Rout);
+  nonblock_assign_ex L (econb Lout);
+  nonblock_assign_ex R (econb Rout);
 
   module_inst3in K_sub key roundSel decrypt;
 
@@ -531,8 +477,6 @@ Qed.
   
   
 
-
-
 Theorem no_leaking_crp : forall (t : nat), chk_code_sen des t = normal.
 Proof.
   intros. unfold chk_code_sen. unfold des.
@@ -568,10 +512,6 @@ Proof.
   rewrite normal_Lout'; rewrite normal_Lout.
   rewrite normal_Rout'; rewrite normal_Rout. simpl. reflexivity.
 Qed.
-
-
-
-
 
 End crp.
 
