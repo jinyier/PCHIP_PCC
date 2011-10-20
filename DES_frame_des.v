@@ -20,7 +20,7 @@ Inductive sensitivity := secure | normal.
 (* Definition signal := nat -> value.  obsolete *)
 
 (*Section Bus_Signals.*)
-Section crp.
+Section des.
 
 Definition bus_value := list value.
 Definition bus := nat -> (bus_value * sensitivity).
@@ -513,6 +513,6 @@ Proof.
   rewrite normal_Rout'; rewrite normal_Rout. simpl. reflexivity.
 Qed.
 
-End crp.
+End des.
 
 

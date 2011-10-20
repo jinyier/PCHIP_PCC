@@ -399,7 +399,8 @@ Axiom normal_decrypt : forall (t : nat), snd (decrypt t) = normal.
 
 
 Definition key_selh : code :=
-  (outb K_sub) ;  (inb K);
+  outb K_sub;  
+  inb K;
   inb roundSel;
   inb decrypt;
   wireb K1;
