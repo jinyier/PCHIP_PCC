@@ -477,7 +477,7 @@ Qed.
   
   
 
-Theorem no_leaking_crp : forall (t : nat), chk_code_sen des t = normal.
+Theorem no_leaking_des : forall (t : nat), chk_code_sen des t = normal.
 Proof.
   intros. unfold chk_code_sen. unfold des.
   unfold expr_sen. unfold eval. simpl.
