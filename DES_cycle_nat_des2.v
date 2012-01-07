@@ -1,3 +1,6 @@
+(* Depart from the 'DES_cycle_nat_des.v' about the definition of time in signals and sensitivity list,
+we now try to include time stamp in the bus definition. *)
+
 (* In order to support fully sensitivity tag assignments, I revamp the whole Coq circuit 
 representative architecture with the first step is redefine the bus architecture:
 *** Definition bus := nat -> nat.
@@ -25,25 +28,31 @@ that problem for now but I'll try later. *)
 (* Most of the Coq representatives for Verilog code are the same as for the VTS 
 paper. *)
 
-Eval compute in (pred 0).
 
-Eval compute in lt 3 5.
 
 Require Import Bool Arith List MinMax.
 
-
 Section des.
+Local Notation "[ ]" := nil : list_scope.
+Local Notation "[ a ; .. ; b ]" := (a :: .. (b :: []) ..) : list_scope.
 
-Definition bus := nat -> nat. (* the sensitivity tag is now a number stored
-in sensitivity tag list. *)
 
-Definition sen_list := nat -> list nat.
+(* Definition bus := nat -> nat. (* the sensitivity tag is now a number stored
+in sensitivity tag list. *) *)
+Definition bus := nat.  (* The definition of bus is only a number indicating the position of the bus in the
+sensitivity tag list. *)
+Definition sense := nat.  (* Use 'sense' instead of 'nat' to represent the sensivitity. They are actually the 
+same thing but of different names.  *)
+Check bus.
 
-Definition sliceA (b : bus) (p1 p2 : nat) : bus :=
-  fun t : nat => (b t).
+(* Definition sen_list := nat -> list nat.*)
+Definition sen_list := nat -> list sense.
 
-Definition sliceD (b : bus) (p1 p2 : nat) : bus :=
-  fun t : nat => (b t).
+Check sen_list.
+
+Definition sliceA (b : bus) (p1 p2 : nat) : bus := b.
+
+Definition sliceD (b : bus) (p1 p2 : nat) : bus := b.
 (* The slicing operation only keeps the bus sensitivity list position. 
 It's reasonable and necessary to assume that any part of the bus shares the same sensitivity level
 as the whole bus. And any changes to the part of the bus will be reflected on the whole bus 
@@ -57,9 +66,7 @@ Definition bus_length (b : bus) :=
   fun t : nat => length (fst (b t)).
 *)
 
-
-Definition bus_bit_not (b : bus) : bus :=
-  fun t : nat => (b t).
+(* Now the return value of bus operation is a sense value, irrelevant to the origianl buses. *)
 
 Definition uoptag (a : nat) : nat := a.
 Definition boptag (a b : nat) : nat := max a b.
@@ -75,11 +82,12 @@ Definition list_update (sl : list nat) (pos : nat) (a : nat) : list nat :=
 
 
 Definition sen_update (sl : sen_list) (n : nat) (new_sen : nat) : sen_list :=
-  (firstn n sl) ++ (new_sen::nil) ++ (skipn (n+1) sl).
-soif
+  fun t : nat => list_update (sl (t-1)) n new_sen.
+
 Definition test := 1::3::5::3::11::6::nil.
-Eval compute in sen_update test 0 666.
-Eval compute in sen_update test 1 666.
+Definition test_sen := fun t : nat => test.
+Eval compute in sen_update test_sen 0 666.
+Eval compute in sen_update test_sen 1 666.
 Eval compute in list_update test 2 666.
 Eval compute in list_update test 666 3.
 Eval compute in list_update test 666 4.
@@ -94,94 +102,75 @@ Definition lowertag (a : nat) : nat := pred a.
 Definition a_number := 3.
 Eval compute in lowertag a_number.
 
-Definition bus_bit_xor (a b : bus) : bus :=
-  fun t:nat => boptag (a t) (b t).
-
-Definition bus_bit_and (a b : bus) : bus :=
-  fun t:nat => boptag (a t) (b t)(b t).
-
-Definition bus_bit_or (a b : bus) : bus :=
-  fun t:nat => boptag (a t) (b t).
-
-Definition bus_app (a b : bus) : bus :=
-  fun t:nat => boptag (a t) (b t).
-
-
-(* No operations are required in the new model. *)
-
-Definition sen_eq (a b : nat) : value := beq_nat a b.
-
-Definition bus_eq (a b : bus) (t : nat) : bus :=
-  fun t:nat => boptag (a t) (b t).
-
-Definition bus_lt (a b : bus) (t : nat) : bus :=
-  fun t:nat => boptag (a t) (b t).
-
-Definition bus_gt (a b : bus) (t : nat) : bus :=
-  fun t:nat => boptag (a t) (b t).
-
-Definition bus_eq_0 (a : bus) (t : nat) : bus := a.
+Eval compute in nth 1 (test_sen 0) 0.
 
 (*
-Lemma bus_eq_refl : forall (t : nat) (a : bus), (bus_eq a a t) = hi.
-Proof.
-  intros. unfold bus_eq. unfold sen_eq. SearchAbout beq_nat. rewrite <- beq_nat_refl.
-  SearchAbout bv_eq. rewrite bv_eq_refl. simpl. trivial. trivial.
-Qed.
+Definition bus_bit_not (b : bus) (sl : sen_list) (t : nat) : sense := 
+  uoptag (nth b (sl t) 0).
 
-Lemma bus_eq_assign : forall (t : nat) (a b : bus), a = b -> (bus_eq a b t) = hi.
-Proof. 
-  intros. rewrite H. apply bus_eq_refl.
-Qed.
+Definition bus_bit_xor (a b : bus) (sl : sen_list) (t : nat) : sense :=
+  boptag (nth a (sl t) 0) (nth b (sl t) 0).
 
-Definition l_test : list nat := 3::4::6::nil.
-Eval compute in nth 0 l_test.
+Definition bus_bit_or (a b : bus) (sl : sen_list) (t : nat) : sense :=
+  boptag (nth a (sl t) 0) (nth b (sl t) 0).
+
+Definition bus_bit_and (a b : bus) (sl : sen_list) (t : nat) : sense :=
+  boptag (nth a (sl t) 0) (nth b (sl t) 0).
+
+Definition bus_app (a b : bus) (sl : sen_list) (t : nat) : sense :=
+  boptag (nth a (sl t) 0) (nth b (sl t) 0).
 *)
 
-Fixpoint sen_list_merge (sl1 sl2 : list nat) : list nat :=
-  match sl1 with
+Fixpoint list_merge (l1 l2 : list nat) : list nat :=
+  match l1 with
   | nil => nil
-  | n1 :: sl1' => match sl2 with
-	          | nil => nil
-		  | n2 :: sl2' => (boptag n1 n2) :: (sen_list_merge sl1' sl2')
-		  end
+  | n1 :: l1' => match l2 with
+                 | nil => nil
+                 | n2 :: l2' => (boptag n1 n2) :: (list_merge l1' l2')
+                 end
   end.
+
+Definition sen_list_merge (sl1 sl2 : sen_list) : sen_list :=
+  fun t : nat =>  list_merge (sl1 t) (sl2 t).
   
 (* The expression is the smallest element of the Coq circuit representative.
 The evaluation operation defines/calculate one signal nat value, the senstivitity tag, of the
 whole expression. 
 The later assignment statements will put the nat value back to the sensitivity list. *)  
 Inductive expr :=
-  | econv : bus_value -> expr
+  | econv : nat -> expr
   | econb : bus -> expr
   | eand : expr -> expr -> expr
   | eor : expr -> expr -> expr
   | exor : expr -> expr -> expr
+  | enot : expr -> expr
+  | eapp : bus -> bus -> expr
   | cond : expr -> expr -> expr -> expr
   | perm : expr -> expr (* the permutation operation *)
   | sbox : bus -> expr (* sbox look-up *)
   | eq : expr -> expr -> expr
   | lt : expr -> expr -> expr
   | gt : expr -> expr -> expr
-  | case3 : expr -> expr -> expr -> expr -> expr -> expr -> expr -> expr -> expr.
+  | case3 : expr -> expr -> expr -> expr -> expr -> expr -> expr -> expr -> expr -> expr.
 
-Fixpoint sen_eval (e : expr) (t : nat) (sl : sen_list){struct e} : nat :=
+Fixpoint sen_eval (e : expr) (t : nat) (sl : sen_list) {struct e} : nat :=
   match e with
   | econv v => O
-  | econb b => nth (b t) (sl t)
+  | econb b => nth b (sl t) 0
   | eand ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
   | eor ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
   | exor ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
   | enot ex => sen_eval ex t sl
+  | eapp b1 b2 => boptag (nth b1 (sl t) 0) (nth b2 (sl t) 0)
   | cond cex ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
   | perm ex => lowertag (sen_eval ex t sl)
-  | sbox b => nth (b t) (sl t)
+  | sbox b => nth b (sl t) 0
   | eq ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
   | lt ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
   | gt ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
   | case3 sel e1 e2 e3 e4 e5 e6 e7 e8 =>
 		max_list 
-                  (sen_eval sel t sl) ::
+                  ((sen_eval sel t sl) ::
                   (sen_eval e1 t sl) ::
                   (sen_eval e2 t sl) ::
                   (sen_eval e3 t sl) ::
@@ -189,7 +178,7 @@ Fixpoint sen_eval (e : expr) (t : nat) (sl : sen_list){struct e} : nat :=
                   (sen_eval e5 t sl) ::
                   (sen_eval e6 t sl) ::
                   (sen_eval e7 t sl) ::
-                  (sen_eval e8 t sl) :: nil
+                  (sen_eval e8 t sl) :: nil)
   end.
 
 
@@ -216,27 +205,47 @@ Inductive code :=
 Notation " c1 ; c2 " := (codepile c1 c2) (at level 50, left associativity).
 
 
+
+
+Fixpoint upd_signals_sen (c : code) (t : nat) (sl : sen_list) : sen_list :=
+                 match c with
+                 | assign_ex b ex => sen_update sl b (sen_eval ex (t-1) sl)
+                 | assign_b b1 b2 => sen_update sl b1 (nth b2 (sl (t-1)) 0)
+                 | assign_case3 b ex => sen_update sl b (sen_eval ex (t-1) sl)
+                 | nonblock_assign_ex b ex => sen_update sl b (sen_eval ex (t-1) sl)  (* added in DES_frame_des.v. *)
+                 | nonblock_assign_b b1 b2 => sen_update sl b1 (nth b2 (sl (t-1)) 0)    (* added in DES_frame_des.v. *)
+                 | module_inst2in bout b1 b2 => sl     (* added in DES_frame_des.v to deal with module instantiation. *)
+                 | module_inst3in bout b1 b2 b3 => sl  (* added in DES_frame_des.v to deal with module instantiation. *)
+                 | codepile c1 c2 => sen_list_merge (upd_signals_sen c1 t sl) (upd_signals_sen c2 t sl)
+                 end.
+
+
+
 (* a.k.a. RTL code file *)
-Variable desIn : bus.       (* #0 *)
-Variable key : bus.         (* #1 *)
-Variable decrypt : bus.     (* #2 *)
-Variable roundSel : bus.    (* #3 *)
-Variable clk : bus.         (* #4 *)
+Definition desIn : bus      := 0.     (* #0 *)
+Definition key : bus        := 1.     (* #1 *)
+Definition decrypt : bus    := 2.     (* #2 *)
+Definition roundSel : bus   := 3.     (* #3 *)
+Definition clk : bus        := 4.     (* #4 *)
 
-Variable K_sub : bus.       (* #5 *)
-Variable IP : bus.          (* #6 *)
-Variable FP : bus.          (* #7 *)
-Variable L : bus.           (* #8 *)
-Variable R : bus.           (* #9 *)
-Variable Xin : bus.         (* #10 *)
-Variable Lout : bus.        (* #11 *)
-Variable Rout : bus.        (* #12 *)
-Variable out : bus.         (* #13 *)
+Definition K_sub : bus      := 5.     (* #5 *)
+Definition IP : bus         := 6.     (* #6 *)
+Definition FP : bus         := 7.     (* #7 *)
+Definition L : bus          := 8.     (* #8 *)
+Definition R : bus          := 9.     (* #9 *)
+Definition Xin : bus        := 10.    (* #10 *)
+Definition Lout : bus       := 11.    (* #11 *)
+Definition Rout : bus       := 12.    (* #12 *)
+Definition out : bus        := 13.    (* #13 *)
 
-Variable desOut : bus.      (* #14 *)
+Definition desOut : bus     := 14.    (* #14 *)
 
-Variable des_sen_list : sen_list.
 
+(* the whole list for all input/output/internal signals *)
+Definition des_sen_list : sen_list := fun t : nat => 1::1::0::0::0::1::0::0::0::0::0::0::0::0::0::nil.
+(*                                                   |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  
+                                                     0  1  2  3  4  5  6  7  8  9 10 11 12 13 14
+*)
 (*
 Axiom secret_desIn : forall (t : nat), bus_sen desIn t = 1.         
 Axiom secret_key : forall (t : nat), bus_sen key t = 1.             
@@ -276,98 +285,28 @@ Definition des_signals : signal :=
   wireb out.		(* #13 *)
 
 
-Fixpoint upd_signals_sen (c : code) (t : nat) (sl : sen_list) : sen_list :=
-  match c with
-  | assign_ex b ex => sen_update sl (b t) (sen_eval ex t sl)
-  | assign_b b1 b2 => bus_sen b2 t
-  | assign_case3 b ex => expr_sen ex t
-  | nonblock_assign_ex b ex => expr_sen ex t  (* added in DES_frame_des.v. *)
-  | nonblock_assign_b b1 b2 => bus_sen b2 t  (* added in DES_frame_des.v. *)
-  | module_inst2in bout b1 b2 => normal    (* added in DES_frame_des.v to deal with module instantiation. *)
-  | module_inst3in bout b1 b2 b3 => normal  (* added in DES_frame_des.v to deal with module instantiation. *)
-  | codepile c1 c2 => boptag (chk_code_sen c1 t) (chk_code_sen c2 t)
+Definition des : code :=
+  assign_ex Lout (cond (eq (econb roundSel) (econv (0))) (econb (IP @ [33, 64])) (econb R));
+  assign_ex Xin (cond (eq (econb roundSel) (econv (0))) (econb (IP @ [1, 32])) (econb L));
 
-
-
-  | codepile c1 c2 => sen_list_merge (upd_signals_sen c1) (upd_signals_sen c2)
-  | 
-
-
-Definition line1 : code :=
-  assign_ex Lout (cond (eq (econb roundSel) (econv (lo::lo::lo::lo::nil))) (econb (IP @ [33, 64])) (econb R)).
-(* Lout => #6 *)
-Definition upd_sen_line1 (sl : list nat) : list nat :=
+  assign_ex Rout (exor (econb Xin) (econb out));
+  assign_ex FP (eapp Rout Lout);
   
+  module_inst2in out Lout K_sub;
 
-Definition line2 : code :=
-  assign_ex Xin (cond (eq (econb roundSel) (econv (lo::lo::lo::lo::nil))) (econb (IP @ [1, 32])) (econb L)).
-(* Xin => #5 *)
+  nonblock_assign_ex L (econb Lout);
+  nonblock_assign_ex R (econb Rout);
 
-Definition line3 : code :=
-  assign_ex Rout (econb (bus_bit_xor Xin out)).
-(* Rout => #7 *)
+  module_inst3in K_sub key roundSel decrypt;
 
-Definition line4 : code :=
-  assign_ex FP (econb (bus_app Rout Lout)).
-(* FP => #2 *)
-
-Definition line5 : code :=
-  module_inst2in out Lout K_sub.
-(* out => #8 *)
-
-Definition line6 : code :=
-  nonblock_assign_ex L (econb Lout).
-(* L => #3 *)
-
-Definition line7 : code :=
-  nonblock_assign_ex R (econb Rout).
-(* R => #4 *)
-
-Definition line8 : code :=
-  module_inst3in K_sub key roundSel decrypt.
-(* K_sub => #0 *)
-
-Definition line9 : code :=
-  assign_ex IP (perm (econb desIn)).
-(* IP => #1 *)
-
-Definition line10 : code :=
+  assign_ex IP (perm (econb desIn));
   assign_ex desOut (perm (econb FP)).
-(* desOut => #9 *)
 
 
 
 
 
-
-
-(* Let's only consider the case that each module only contains one output bus.
-It holds for all modules in DES example. 
-Or more precisely, return the sensitivity of the specific bus (manually iterate. *)
-Fixpoint upd_code_sen (c : code) (t : nat) : 
-
-Fixpoint chk_code_sen (c : code) (t : nat) : sensitivity :=
-  match c with
-  | outb b => normal
-  | inb b => normal
-  | wireb b => normal
-  | regb b => normal
-  | assign_ex b ex => expr_sen ex t
-  | assign_b b1 b2 => bus_sen b2 t
-  | assign_case3 b ex => expr_sen ex t
-  | nonblock_assign_ex b ex => expr_sen ex t  (* added in DES_frame_des.v. *)
-  | nonblock_assign_b b1 b2 => bus_sen b2 t  (* added in DES_frame_des.v. *)
-  | module_inst2in bout b1 b2 => normal    (* added in DES_frame_des.v to deal with module instantiation. *)
-  | module_inst3in bout b1 b2 b3 => normal  (* added in DES_frame_des.v to deal with module instantiation. *)
-  | codepile c1 c2 => boptag (chk_code_sen c1 t) (chk_code_sen c2 t)
-  end.
-
-
-
-
-
-
-
+Theorem no_leaking : forall t : nat, t > 2 -> 
 
 
 
