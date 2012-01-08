@@ -1,3 +1,14 @@
+(* Discussion notes with Zhong on Jan 7th 2012: 
+1. Soundness, means correctness. That is, when the theorem is proved in Coq, it should be correct in any 
+other environment. It's more related to Coq itself but not the way how I define statemen in the Coq.
+2. Completeness. More strong than soundness.
+3. To perform the same operation multiple times, one solution is to define a function with n (multiple times)
+and operation function (or not).
+4. Coq is quite aggressive in prove calculation results. That is, Coq will calculate the results first
+(different to other less aggressive languages which require the proof of the calculation process). As a 
+result, the theorem proof only requires a "reflexivity" static.
+*)
+
 (* Depart from the 'DES_cycle_nat_des.v' about the definition of time in signals and sensitivity list,
 we now try to include time stamp in the bus definition. *)
 
@@ -84,12 +95,42 @@ Definition list_update (sl : list nat) (pos : nat) (a : nat) : list nat :=
 Definition sen_update (sl : sen_list) (n : nat) (new_sen : nat) : sen_list :=
   fun t : nat => list_update (sl (t-1)) n new_sen.
 
+Definition sen_update_null (sl : sen_list) : sen_list :=
+  fun t : nat => sl (t-1).  (* only update time stamp. *)
+
+
 Definition test := 1::3::5::3::11::6::nil.
+Definition test4 := 2::2::6::2::12::5::nil.
+Definition test2 := 2::6::16::nil.
+Definition test3 : list nat := nil.
+
 Definition test_sen := fun t : nat => test.
-Eval compute in sen_update test_sen 0 666.
-Eval compute in sen_update test_sen 1 666.
+Definition test_sen2 := 
+  fun t:nat => match t with
+               | O => test
+	       | S O => test2
+	       | _ => test3
+	       end.
+
+Eval compute in sen_update test_sen2 2 666 6.
+Eval compute in sen_update test_sen2 1 666.
 Eval compute in list_update test 2 666.
-Eval compute in list_update test 666 3.
+Eval compute in list_update test3 666 3.
+
+Eval compute in sen_update test_sen2 2 666 3.
+Eval compute in sen_update (sen_update test_sen2 2 666) 1 33 0. 
+Eval compute in sen_update (sen_update test_sen2 2 666) 1 33 1. 
+Eval compute in sen_update (sen_update test_sen2 2 666) 1 33 2. 
+Eval compute in sen_update (sen_update test_sen2 2 666) 1 33 3. 
+Eval compute in sen_update (sen_update test_sen2 2 666) 1 33 4.
+
+Definition test_sen3 := 
+  fun t:nat => match t with
+               | O => test4
+               | _ => test3
+               end.
+Eval compute in sen_update (sen_update test_sen3 0 666) 0 666 2.
+ 
 Eval compute in list_update test 666 4.
 Eval compute in list_update test 666 5.
 Eval compute in list_update test 666 6.
@@ -132,6 +173,14 @@ Fixpoint list_merge (l1 l2 : list nat) : list nat :=
 
 Definition sen_list_merge (sl1 sl2 : sen_list) : sen_list :=
   fun t : nat =>  list_merge (sl1 t) (sl2 t).
+
+Check sen_list_merge test_sen2 test_sen3.
+Eval compute in (sen_list_merge test_sen2 test_sen3) 0.
+Eval compute in (sen_list_merge test_sen2 test_sen3) 1.
+Eval compute in (sen_list_merge test_sen2 test_sen3) 2.
+Eval compute in (sen_list_merge test_sen2 test_sen3) 3.
+Eval compute in (sen_list_merge test_sen2 test_sen3) 4.
+
   
 (* The expression is the smallest element of the Coq circuit representative.
 The evaluation operation defines/calculate one signal nat value, the senstivitity tag, of the
@@ -156,7 +205,7 @@ Inductive expr :=
 Fixpoint sen_eval (e : expr) (t : nat) (sl : sen_list) {struct e} : nat :=
   match e with
   | econv v => O
-  | econb b => nth b (sl t) 0
+  | econb b => nth b (sl t) 0  (* The ending 0 is only used to indicate the nat property of nth function. *)
   | eand ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
   | eor ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
   | exor ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
@@ -214,12 +263,13 @@ Fixpoint upd_signals_sen (c : code) (t : nat) (sl : sen_list) : sen_list :=
                  | assign_case3 b ex => sen_update sl b (sen_eval ex (t-1) sl)
                  | nonblock_assign_ex b ex => sen_update sl b (sen_eval ex (t-1) sl)  (* added in DES_frame_des.v. *)
                  | nonblock_assign_b b1 b2 => sen_update sl b1 (nth b2 (sl (t-1)) 0)    (* added in DES_frame_des.v. *)
-                 | module_inst2in bout b1 b2 => sl     (* added in DES_frame_des.v to deal with module instantiation. *)
-                 | module_inst3in bout b1 b2 b3 => sl  (* added in DES_frame_des.v to deal with module instantiation. *)
+                 | module_inst2in bout b1 b2 => sen_update_null sl     (* added in DES_frame_des.v to deal with module instantiation. *)
+                 | module_inst3in bout b1 b2 b3 => sen_update_null sl  (* added in DES_frame_des.v to deal with module instantiation. *)
                  | codepile c1 c2 => sen_list_merge (upd_signals_sen c1 t sl) (upd_signals_sen c2 t sl)
                  end.
 
 
+Definition upd_code_sen (n:nat)
 
 (* a.k.a. RTL code file *)
 Definition desIn : bus      := 0.     (* #0 *)
@@ -242,8 +292,17 @@ Definition desOut : bus     := 14.    (* #14 *)
 
 
 (* the whole list for all input/output/internal signals *)
+Definition des_sen_list : sen_list := 
+  fun t : nat => match t with
+                 | O => 1::1::0::0::0::1::0::0::0::0::0::0::0::1::0::nil
+(*                      |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  
+                        0  1  2  3  4  5  6  7  8  9 10 11 12 13 14
+*)
+                 | S _ => []
+                 end.
+(*
 Definition des_sen_list : sen_list := fun t : nat => 1::1::0::0::0::1::0::0::0::0::0::0::0::0::0::nil.
-(*                                                   |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  
+                                                     |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  
                                                      0  1  2  3  4  5  6  7  8  9 10 11 12 13 14
 *)
 (*
@@ -300,11 +359,18 @@ Definition des : code :=
   module_inst3in K_sub key roundSel decrypt;
 
   assign_ex IP (perm (econb desIn));
-  assign_ex desOut (perm (econb FP)).
+  assign_ex desOut (perm (econb FP)) 
+(*  assign_ex desOut (cond (eq (econb roundSel) (econv 0)) (econb FP) (econb key))*)
+
+.
 
 
 
-
+Eval compute in des_sen_list 0.
+Eval compute in (upd_signals_sen des 1 des_sen_list) 0.
+Eval compute in (upd_signals_sen des 1 des_sen_list) 1.
+Eval compute in upd_signals_sen des 2 (upd_signals_sen des 1 des_sen_list) 3.
+Eval compute in (upd_signals_sen des 1 des_sen_list) 2.
 
 Theorem no_leaking : forall t : nat, t > 2 -> 
 
