@@ -42,6 +42,7 @@ paper. *)
 
 
 Require Import Bool Arith List MinMax.
+Require Omega.
 
 Section des.
 Local Notation "[ ]" := nil : list_scope.
@@ -57,9 +58,10 @@ same thing but of different names.  *)
 Check bus.
 
 (* Definition sen_list := nat -> list nat.*)
-Definition sen_list := nat -> list sense.
+Definition bus_expr_sen := nat -> sense. (* So the sensitivity of each bus is related to the time stamp. *)
+Definition code_sen := nat -> list sense.
 
-Check sen_list.
+Check code_sen.
 
 Definition sliceA (b : bus) (p1 p2 : nat) : bus := b.
 
@@ -92,10 +94,10 @@ Definition list_update (sl : list nat) (pos : nat) (a : nat) : list nat :=
   (firstn pos sl) ++ (a::nil) ++ (skipn (pos+1) sl).
 
 
-Definition sen_update (sl : sen_list) (n : nat) (new_sen : nat) : sen_list :=
+Definition code_sen_update (sl : code_sen) (n : nat) (new_sen : nat) : code_sen :=
   fun t : nat => list_update (sl (t-1)) n new_sen.
 
-Definition sen_update_null (sl : sen_list) : sen_list :=
+Definition code_sen_update_null (sl : code_sen) : code_sen :=
   fun t : nat => sl (t-1).  (* only update time stamp. *)
 
 
@@ -112,24 +114,24 @@ Definition test_sen2 :=
 	       | _ => test3
 	       end.
 
-Eval compute in sen_update test_sen2 2 666 6.
-Eval compute in sen_update test_sen2 1 666.
+Eval compute in code_sen_update test_sen2 2 666 6.
+Eval compute in code_sen_update test_sen2 1 666.
 Eval compute in list_update test 2 666.
 Eval compute in list_update test3 666 3.
 
-Eval compute in sen_update test_sen2 2 666 3.
-Eval compute in sen_update (sen_update test_sen2 2 666) 1 33 0. 
-Eval compute in sen_update (sen_update test_sen2 2 666) 1 33 1. 
-Eval compute in sen_update (sen_update test_sen2 2 666) 1 33 2. 
-Eval compute in sen_update (sen_update test_sen2 2 666) 1 33 3. 
-Eval compute in sen_update (sen_update test_sen2 2 666) 1 33 4.
+Eval compute in code_sen_update test_sen2 2 666 3.
+Eval compute in code_sen_update (code_sen_update test_sen2 2 666) 1 33 0. 
+Eval compute in code_sen_update (code_sen_update test_sen2 2 666) 1 33 1. 
+Eval compute in code_sen_update (code_sen_update test_sen2 2 666) 1 33 2. 
+Eval compute in code_sen_update (code_sen_update test_sen2 2 666) 1 33 3. 
+Eval compute in code_sen_update (code_sen_update test_sen2 2 666) 1 33 4.
 
 Definition test_sen3 := 
   fun t:nat => match t with
                | O => test4
                | _ => test3
                end.
-Eval compute in sen_update (sen_update test_sen3 0 666) 0 666 2.
+Eval compute in code_sen_update (code_sen_update test_sen3 0 666) 0 666 2.
  
 Eval compute in list_update test 666 4.
 Eval compute in list_update test 666 5.
@@ -171,15 +173,15 @@ Fixpoint list_merge (l1 l2 : list nat) : list nat :=
                  end
   end.
 
-Definition sen_list_merge (sl1 sl2 : sen_list) : sen_list :=
+Definition code_sen_merge (sl1 sl2 : code_sen) : code_sen :=
   fun t : nat =>  list_merge (sl1 t) (sl2 t).
 
-Check sen_list_merge test_sen2 test_sen3.
-Eval compute in (sen_list_merge test_sen2 test_sen3) 0.
-Eval compute in (sen_list_merge test_sen2 test_sen3) 1.
-Eval compute in (sen_list_merge test_sen2 test_sen3) 2.
-Eval compute in (sen_list_merge test_sen2 test_sen3) 3.
-Eval compute in (sen_list_merge test_sen2 test_sen3) 4.
+Check code_sen_merge test_sen2 test_sen3.
+Eval compute in (code_sen_merge test_sen2 test_sen3) 0.
+Eval compute in (code_sen_merge test_sen2 test_sen3) 1.
+Eval compute in (code_sen_merge test_sen2 test_sen3) 2.
+Eval compute in (code_sen_merge test_sen2 test_sen3) 3.
+Eval compute in (code_sen_merge test_sen2 test_sen3) 4.
 
   
 (* The expression is the smallest element of the Coq circuit representative.
@@ -202,32 +204,33 @@ Inductive expr :=
   | gt : expr -> expr -> expr
   | case3 : expr -> expr -> expr -> expr -> expr -> expr -> expr -> expr -> expr -> expr.
 
-Fixpoint sen_eval (e : expr) (t : nat) (sl : sen_list) {struct e} : nat :=
+Fixpoint expr_sen_eval (e : expr) (sl : code_sen) {struct e} : bus_expr_sen :=
+  fun t : nat =>
   match e with
   | econv v => O
   | econb b => nth b (sl t) 0  (* The ending 0 is only used to indicate the nat property of nth function. *)
-  | eand ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
-  | eor ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
-  | exor ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
-  | enot ex => sen_eval ex t sl
+  | eand ex1 ex2 => boptag (expr_sen_eval ex1 sl t) (expr_sen_eval ex2 sl t)
+  | eor ex1 ex2 => boptag (expr_sen_eval ex1 sl t) (expr_sen_eval ex2 sl t)
+  | exor ex1 ex2 => boptag (expr_sen_eval ex1 sl t) (expr_sen_eval ex2 sl t)
+  | enot ex => expr_sen_eval ex sl t
   | eapp b1 b2 => boptag (nth b1 (sl t) 0) (nth b2 (sl t) 0)
-  | cond cex ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
-  | perm ex => lowertag (sen_eval ex t sl)
+  | cond cex ex1 ex2 => boptag (expr_sen_eval ex1 sl t) (expr_sen_eval ex2 sl t)
+  | perm ex => lowertag (expr_sen_eval ex sl t)
   | sbox b => nth b (sl t) 0
-  | eq ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
-  | lt ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
-  | gt ex1 ex2 => boptag (sen_eval ex1 t sl) (sen_eval ex2 t sl)
+  | eq ex1 ex2 => boptag (expr_sen_eval ex1 sl t) (expr_sen_eval ex2 sl t)
+  | lt ex1 ex2 => boptag (expr_sen_eval ex1 sl t) (expr_sen_eval ex2 sl t)
+  | gt ex1 ex2 => boptag (expr_sen_eval ex1 sl t) (expr_sen_eval ex2 sl t)
   | case3 sel e1 e2 e3 e4 e5 e6 e7 e8 =>
 		max_list 
-                  ((sen_eval sel t sl) ::
-                  (sen_eval e1 t sl) ::
-                  (sen_eval e2 t sl) ::
-                  (sen_eval e3 t sl) ::
-                  (sen_eval e4 t sl) ::
-                  (sen_eval e5 t sl) ::
-                  (sen_eval e6 t sl) ::
-                  (sen_eval e7 t sl) ::
-                  (sen_eval e8 t sl) :: nil)
+                  ((expr_sen_eval sel sl t) ::
+                  (expr_sen_eval e1 sl t) ::
+                  (expr_sen_eval e2 sl t) ::
+                  (expr_sen_eval e3 sl t) ::
+                  (expr_sen_eval e4 sl t) ::
+                  (expr_sen_eval e5 sl t) ::
+                  (expr_sen_eval e6 sl t) ::
+                  (expr_sen_eval e7 sl t) ::
+                  (expr_sen_eval e8 sl t) :: nil)
   end.
 
 
@@ -255,20 +258,30 @@ Notation " c1 ; c2 " := (codepile c1 c2) (at level 50, left associativity).
 
 
 
-Fixpoint upd_signals_sen (c : code) (sl : sen_list) : sen_list :=
-  fun t : nat =>           match c with
-                 | assign_ex b ex => sen_update sl b (sen_eval ex (t-1) sl)
-                 | assign_b b1 b2 => sen_update sl b1 (nth b2 (sl (t-1)) 0)
-                 | assign_case3 b ex => sen_update sl b (sen_eval ex (t-1) sl)
-                 | nonblock_assign_ex b ex => sen_update sl b (sen_eval ex (t-1) sl)  (* added in DES_frame_des.v. *)
-                 | nonblock_assign_b b1 b2 => sen_update sl b1 (nth b2 (sl (t-1)) 0)    (* added in DES_frame_des.v. *)
-                 | module_inst2in bout b1 b2 => sen_update_null sl     (* added in DES_frame_des.v to deal with module instantiation. *)
-                 | module_inst3in bout b1 b2 b3 => sen_update_null sl  (* added in DES_frame_des.v to deal with module instantiation. *)
-                 | codepile c1 c2 => sen_list_merge (upd_signals_sen c1 t sl) (upd_signals_sen c2 t sl)
+Fixpoint upd_code_sen (c : code) (sl : code_sen) : code_sen :=
+  fun t : nat => match c with
+                 | assign_ex b ex => code_sen_update sl b (expr_sen_eval ex sl (t-1)) t
+                 | assign_b b1 b2 => code_sen_update sl b1 (nth b2 (sl (t-1)) 0) t
+                 | assign_case3 b ex => code_sen_update sl b (expr_sen_eval ex sl (t-1)) t
+                 | nonblock_assign_ex b ex => code_sen_update sl b (expr_sen_eval ex sl (t-1)) t  (* added in DES_frame_des.v. *)
+                 | nonblock_assign_b b1 b2 => code_sen_update sl b1 (nth b2 (sl (t-1)) 0) t    (* added in DES_frame_des.v. *)
+                 | module_inst2in bout b1 b2 => code_sen_update_null sl t     (* added in DES_frame_des.v to deal with module instantiation. *)
+                 | module_inst3in bout b1 b2 b3 => code_sen_update_null sl t  (* added in DES_frame_des.v to deal with module instantiation. *)
+                 | codepile c1 c2 => code_sen_merge (upd_code_sen c1 sl) (upd_code_sen c2 sl) t
                  end.
 
 
-Definition upd_code_sen (n:nat)
+Fixpoint chk_code_sen (n:nat) (c:code) (sl : code_sen) : list sense :=
+  match n with
+  | O => sl O
+  | S n' => chk_code_sen n' c (upd_code_sen c sl)
+  end.
+
+Fixpoint chk_code_sen_detail (n:nat) (c:code) (sl:code_sen) : code_sen :=
+  match n with 
+  | O => sl
+  | S n' => chk_code_sen_detail n' c (upd_code_sen c sl)
+  end.
 
 (* a.k.a. RTL code file *)
 Definition desIn : bus      := 0.     (* #0 *)
@@ -291,9 +304,9 @@ Definition desOut : bus     := 14.    (* #14 *)
 
 
 (* the whole list for all input/output/internal signals *)
-Definition des_sen_list : sen_list := 
+Definition des_code_sen : code_sen := 
   fun t : nat => match t with
-                 | O => 1::1::0::0::0::1::0::0::0::0::0::0::0::1::0::nil
+                 | O => 1::1::0::0::0::1::0::0::0::0::0::0::0::0::0::nil
 (*                      |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  
                         0  1  2  3  4  5  6  7  8  9 10 11 12 13 14
 *)
@@ -365,13 +378,37 @@ Definition des : code :=
 
 
 
-Eval compute in des_sen_list 0.
-Eval compute in (upd_signals_sen des 1 des_sen_list) 0.
-Eval compute in (upd_signals_sen des 1 des_sen_list) 1.
-Eval compute in upd_signals_sen des 2 (upd_signals_sen des 1 des_sen_list) 3.
-Eval compute in (upd_signals_sen des 1 des_sen_list) 2.
+Eval compute in des_code_sen 0.
+Eval compute in chk_code_sen 0 des des_code_sen.
+Eval compute in chk_code_sen_detail 0 des des_code_sen.
+Eval compute in chk_code_sen 1 des des_code_sen.
+Eval compute in chk_code_sen_detail 1 des des_code_sen 0.
+Eval compute in chk_code_sen_detail 1 des des_code_sen 1.
+Eval compute in chk_code_sen_detail 1 des des_code_sen 2.
+Eval compute in chk_code_sen 2 des des_code_sen.
+Eval compute in chk_code_sen_detail 2 des des_code_sen 0.
+Eval compute in chk_code_sen_detail 2 des des_code_sen 1.
+Eval compute in chk_code_sen_detail 2 des des_code_sen 2.
+Eval compute in chk_code_sen_detail 2 des des_code_sen 3.
+Eval compute in chk_code_sen 3 des des_code_sen.
+
+Variable m : nat.
+
+Lemma stable_code_sen :  chk_code_sen m des des_code_sen = chk_code_sen (m+1) des des_code_sen.
+Proof.
+  intros. reflexivity.
+
+
+
 
 Theorem no_leaking : forall t : nat, t > 2 -> 
+  (chk_code_sen t des des_code_sen) = 1::1::0::0::0::1::0::0::0::0::0::0::0::0::0::nil.
+Proof. 
+  intros. induction H. reflexivity.
+  unfold chk_code_sen. unfold chk_code_sen in IHle. 
+  unfold upd_code_sen. simpl. 
+  unfold nth in IHle. simpl.
+  reflexivity.
 
 
 
