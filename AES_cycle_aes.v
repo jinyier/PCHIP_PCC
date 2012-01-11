@@ -115,6 +115,7 @@ Fixpoint expr_sen_eval (e : expr) (sl : code_sen) {struct e} : bus_expr_sen :=
   | eapp b1 b2 => boptag (nth b1 (sl) 0) (nth b2 (sl) 0)
   | cond cex ex1 ex2 => boptag (expr_sen_eval ex1 sl) (expr_sen_eval ex2 sl)
   | perm ex => lowertag (expr_sen_eval ex sl)
+  | exor_key ex key => lowertag (expr_sen_eval ex sl)  (* The only operation in AES to decrease sensitivity level except sub-module. *)
   | sbox b => nth b (sl) 0
   | eq ex1 ex2 => boptag (expr_sen_eval ex1 sl) (expr_sen_eval ex2 sl)
   | lt ex1 ex2 => boptag (expr_sen_eval ex1 sl) (expr_sen_eval ex2 sl)
@@ -432,6 +433,51 @@ endmodule
 
 
 ******************************************************** *)
+Definition clk : bus		:= 0.
+Definition rst : bus		:= 1.
+Definition ld : bus		:= 2.
+Definition key : bus		:= 3.
+Definition text_in : bus	:= 4.
+Definition w : bus		:= 5.
+Definition w0 : bus		:= 6.
+Definition w1 : bus		:= 7.
+Definition w2 : bus		:= 8.
+Definition w3 : bus		:= 9.
+Definition w4 : bus		:= 10.
+Definition text_in_r : bus	:= 11.
+Definition sa00 : bus		:= 12.
+Definition sa01: bus		:= 13.
+Definition sa02 : bus		:= 14.
+Definition sa03 : bus		:= 15.
+Definition sa10 : bus		:= 16.
+Definition sa11 : bus		:= 17.
+Definition sa12 : bus		:= 18.
+Definition sa13 : bus		:= 19.
+Definition sa20 : bus		:= 20.
+Definition sa21 : bus		:= 21.
+Definition sa22 : bus		:= 22.
+Definition sa23 : bus		:= 23.
+Definition sa30 : bus		:= 24.
+Definition sa31 : bus		:= 25.
+Definition sa32 : bus		:= 26.
+Definition sa33 : bus		:= 27.
+Definition  : bus		:= 28.
+Definition clk : bus		:= 29.
+Definition clk : bus		:= 30.
+Definition clk : bus		:= 31.
+Definition clk : bus		:= 32.
+Definition clk : bus		:= 33.
+Definition clk : bus		:= 34.
+Definition clk : bus		:= 35.
+Definition clk : bus		:= 36.
+Definition clk : bus		:= 37.
+Definition clk : bus		:= 38.
+Definition clk : bus		:= 39.
+Definition clk : bus		:= 40.
+Definition clk : bus		:= 41.
+Definition clk : bus		:= 42.
+
+
 
 (* a.k.a. RTL code file *)
 Definition desIn : bus      := 0.     (* #0 *)
