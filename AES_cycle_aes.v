@@ -11,9 +11,10 @@ And, hopefully, this method can be expanded to deep pipelined designs and proces
 Require Import Bool Arith List MinMax.
 Require Omega.
 
-Section des.
-Local Notation "[ ]" := nil : list_scope.
-Local Notation "[ a ; .. ; b ]" := (a :: .. (b :: []) ..) : list_scope.
+
+Section aes.
+(* Local Notation "[ ]" := nil : list_scope.
+Local Notation "[ a ; .. ; b ]" := (a :: .. (b :: []) ..) : list_scope. *)
 
 
 Definition bus := nat.  (* The definition of bus is only a number indicating the position of the bus in the
@@ -54,6 +55,9 @@ Definition list_update (sl : list nat) (pos : nat) (a : nat) : list nat :=
 Definition code_sen_update (sl : code_sen) (n : nat) (new_sen : nat) : code_sen :=
   list_update sl n new_sen.
 
+Definition code_sen_update_m4 (sl : code_sen) (n1 n2 n3 n4 : nat) (new_sen : nat) : code_sen :=
+  list_update (list_update (list_update (list_update sl n1 new_sen) n2 new_sen) n3 new_sen) n4 new_sen.
+
 Definition code_sen_update_null (sl : code_sen) : code_sen :=
   sl.  (* only update time stamp. *)
 
@@ -93,7 +97,9 @@ Inductive expr :=
   | eapp : bus -> bus -> expr
   | cond : expr -> expr -> expr -> expr
   | perm : expr -> expr (* the permutation operation *)
-  | sbox : bus -> expr (* sbox look-up *)
+  | exor_key : bus -> bus -> expr (* the operaton of XOR a bus with the key *)
+  | sbox : bus -> expr (* sbox look-up, both for /DES/ and /AES/*)
+  | mix_col : bus -> bus -> bus -> bus -> expr  (* Mix column operation /AES/ *)
   | eq : expr -> expr -> expr
   | lt : expr -> expr -> expr
   | gt : expr -> expr -> expr
@@ -115,8 +121,9 @@ Fixpoint expr_sen_eval (e : expr) (sl : code_sen) {struct e} : bus_expr_sen :=
   | eapp b1 b2 => boptag (nth b1 (sl) 0) (nth b2 (sl) 0)
   | cond cex ex1 ex2 => boptag (expr_sen_eval ex1 sl) (expr_sen_eval ex2 sl)
   | perm ex => lowertag (expr_sen_eval ex sl)
-  | exor_key ex key => lowertag (expr_sen_eval ex sl)  (* The only operation in AES to decrease sensitivity level except sub-module. *)
+  | exor_key b key => lowertag (boptag (nth b sl 0) (nth key sl 0))  (* The only operation in AES to decrease sensitivity level except sub-module. *)
   | sbox b => nth b (sl) 0
+  | mix_col b1 b2 b3 b4 => max_list ((nth b1 sl 0)::(nth b2 sl 0)::(nth b3 sl 0)::(nth b4 sl 0)::nil)  (* can also use eapp operation *)
   | eq ex1 ex2 => boptag (expr_sen_eval ex1 sl) (expr_sen_eval ex2 sl)
   | lt ex1 ex2 => boptag (expr_sen_eval ex1 sl) (expr_sen_eval ex2 sl)
   | gt ex1 ex2 => boptag (expr_sen_eval ex1 sl) (expr_sen_eval ex2 sl)
@@ -146,6 +153,7 @@ Notation " s1 & s2 " := (signalpile s1 s2) (at level 50, left associativity).
 Inductive code :=
   | assign_ex : bus -> expr -> code
   | assign_b : bus -> bus -> code
+  | assign_mix_col : bus -> bus -> bus -> bus -> expr -> code  (* to deal with the 4 bytes mix column operation *)
   | assign_case3 : bus -> expr -> code
   | nonblock_assign_ex : bus -> expr -> code    (* added in DES_frame_des.v. *)
   | nonblock_assign_b : bus -> bus -> code   (* added in DES_frame_des.v. *)
@@ -163,6 +171,7 @@ Fixpoint upd_code_sen (c : code) (sl : code_sen) : code_sen :=
                  | assign_ex b ex => code_sen_update sl b (expr_sen_eval ex sl)
                  | assign_b b1 b2 => code_sen_update sl b1 (nth b2 sl 0)
                  | assign_case3 b ex => code_sen_update sl b (expr_sen_eval ex sl)
+                 | assign_mix_col b1 b2 b3 b4 ex => code_sen_update_m4 sl b1 b2 b3 b4 (expr_sen_eval ex sl)  (* update all four signals at once *)
                  | nonblock_assign_ex b ex => code_sen_update sl b (expr_sen_eval ex sl)  (* added in DES_frame_des.v. *)
                  | nonblock_assign_b b1 b2 => code_sen_update sl b1 (nth b2 sl 0)    (* added in DES_frame_des.v. *)
                  | module_inst2in bout b1 b2 => code_sen_update_null sl    (* added in DES_frame_des.v to deal with module instantiation. *)
@@ -178,334 +187,138 @@ Fixpoint chk_code_sen (n:nat) (c:code) (sl : code_sen) : code_sen :=
   end.
 
 
-(* ********************************************************************
-/////////////////////////////////////////////////////////////////////
-////                                                             ////
-////  AES Cipher Top Level                                       ////
-////                                                             ////
-////                                                             ////
-////  Author: Rudolf Usselmann                                   ////
-////          rudi@asics.ws                                      ////
-////                                                             ////
-////                                                             ////
-////  Downloaded from: http://www.opencores.org/cores/aes_core/  ////
-////                                                             ////
-/////////////////////////////////////////////////////////////////////
-////                                                             ////
-//// Copyright (C) 2000-2002 Rudolf Usselmann                    ////
-////                         www.asics.ws                        ////
-////                         rudi@asics.ws                       ////
-////                                                             ////
-//// This source file may be used and distributed without        ////
-//// restriction provided that this copyright statement is not   ////
-//// removed from the file and that any derivative work contains ////
-//// the original copyright notice and the associated disclaimer.////
-////                                                             ////
-////     THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY     ////
-//// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED   ////
-//// TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS   ////
-//// FOR A PARTICULAR PURPOSE. IN NO EVENT SHALL THE AUTHOR      ////
-//// OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,         ////
-//// INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES    ////
-//// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE   ////
-//// GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR        ////
-//// BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF  ////
-//// LIABILITY, WHETHER IN  CONTRACT, STRICT LIABILITY, OR TORT  ////
-//// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT  ////
-//// OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         ////
-//// POSSIBILITY OF SUCH DAMAGE.                                 ////
-////                                                             ////
-/////////////////////////////////////////////////////////////////////
+(********************************************************* *)
 
-//  CVS Log
-//
-//  $Id: aes_cipher_top.v,v 1.1.1.1 2002-11-09 11:22:48 rudi Exp $
-//
-//  $Date: 2002-11-09 11:22:48 $
-//  $Revision: 1.1.1.1 $
-//  $Author: rudi $
-//  $Locker:  $
-//  $State: Exp $
-//
-// Change History:
-//               $Log: not supported by cvs2svn $
-//
-//
-//
-//
-//
-
-`include "timescale.v"
-
-module aes_cipher_top(clk, rst, ld, done, key, text_in, text_out );
-input		clk, rst;
-input		ld;
-output		done;
-input	[127:0]	key;
-input	[127:0]	text_in;
-output	[127:0]	text_out;
-
-////////////////////////////////////////////////////////////////////
-//
-// Local Wires
-//
-
-wire	[31:0]	w0, w1, w2, w3;
-reg	[127:0]	text_in_r;
-reg	[127:0]	text_out;
-reg	[7:0]	sa00, sa01, sa02, sa03;
-reg	[7:0]	sa10, sa11, sa12, sa13;
-reg	[7:0]	sa20, sa21, sa22, sa23;
-reg	[7:0]	sa30, sa31, sa32, sa33;
-wire	[7:0]	sa00_next, sa01_next, sa02_next, sa03_next;
-wire	[7:0]	sa10_next, sa11_next, sa12_next, sa13_next;
-wire	[7:0]	sa20_next, sa21_next, sa22_next, sa23_next;
-wire	[7:0]	sa30_next, sa31_next, sa32_next, sa33_next;
-wire	[7:0]	sa00_sub, sa01_sub, sa02_sub, sa03_sub;
-wire	[7:0]	sa10_sub, sa11_sub, sa12_sub, sa13_sub;
-wire	[7:0]	sa20_sub, sa21_sub, sa22_sub, sa23_sub;
-wire	[7:0]	sa30_sub, sa31_sub, sa32_sub, sa33_sub;
-wire	[7:0]	sa00_sr, sa01_sr, sa02_sr, sa03_sr;
-wire	[7:0]	sa10_sr, sa11_sr, sa12_sr, sa13_sr;
-wire	[7:0]	sa20_sr, sa21_sr, sa22_sr, sa23_sr;
-wire	[7:0]	sa30_sr, sa31_sr, sa32_sr, sa33_sr;
-wire	[7:0]	sa00_mc, sa01_mc, sa02_mc, sa03_mc;
-wire	[7:0]	sa10_mc, sa11_mc, sa12_mc, sa13_mc;
-wire	[7:0]	sa20_mc, sa21_mc, sa22_mc, sa23_mc;
-wire	[7:0]	sa30_mc, sa31_mc, sa32_mc, sa33_mc;
-reg		done, ld_r;
-reg	[3:0]	dcnt;
-
-////////////////////////////////////////////////////////////////////
-//
-// Misc Logic
-//
-
-always @(posedge clk)
-	if(!rst)	dcnt <= #1 4'h0;
-	else
-	if(ld)		dcnt <= #1 4'hb;
-	else
-	if(|dcnt)	dcnt <= #1 dcnt - 4'h1;
-
-always @(posedge clk) done <= #1 !(|dcnt[3:1]) & dcnt[0] & !ld;
-always @(posedge clk) if(ld) text_in_r <= #1 text_in;
-always @(posedge clk) ld_r <= #1 ld;
-
-////////////////////////////////////////////////////////////////////
-//
-// Initial Permutation (AddRoundKey)
-//
-
-always @(posedge clk)	sa33 <= #1 ld_r ? text_in_r[007:000] ^ w3[07:00] : sa33_next;
-always @(posedge clk)	sa23 <= #1 ld_r ? text_in_r[015:008] ^ w3[15:08] : sa23_next;
-always @(posedge clk)	sa13 <= #1 ld_r ? text_in_r[023:016] ^ w3[23:16] : sa13_next;
-always @(posedge clk)	sa03 <= #1 ld_r ? text_in_r[031:024] ^ w3[31:24] : sa03_next;
-always @(posedge clk)	sa32 <= #1 ld_r ? text_in_r[039:032] ^ w2[07:00] : sa32_next;
-always @(posedge clk)	sa22 <= #1 ld_r ? text_in_r[047:040] ^ w2[15:08] : sa22_next;
-always @(posedge clk)	sa12 <= #1 ld_r ? text_in_r[055:048] ^ w2[23:16] : sa12_next;
-always @(posedge clk)	sa02 <= #1 ld_r ? text_in_r[063:056] ^ w2[31:24] : sa02_next;
-always @(posedge clk)	sa31 <= #1 ld_r ? text_in_r[071:064] ^ w1[07:00] : sa31_next;
-always @(posedge clk)	sa21 <= #1 ld_r ? text_in_r[079:072] ^ w1[15:08] : sa21_next;
-always @(posedge clk)	sa11 <= #1 ld_r ? text_in_r[087:080] ^ w1[23:16] : sa11_next;
-always @(posedge clk)	sa01 <= #1 ld_r ? text_in_r[095:088] ^ w1[31:24] : sa01_next;
-always @(posedge clk)	sa30 <= #1 ld_r ? text_in_r[103:096] ^ w0[07:00] : sa30_next;
-always @(posedge clk)	sa20 <= #1 ld_r ? text_in_r[111:104] ^ w0[15:08] : sa20_next;
-always @(posedge clk)	sa10 <= #1 ld_r ? text_in_r[119:112] ^ w0[23:16] : sa10_next;
-always @(posedge clk)	sa00 <= #1 ld_r ? text_in_r[127:120] ^ w0[31:24] : sa00_next;
-
-////////////////////////////////////////////////////////////////////
-//
-// Round Permutations
-//
-
-assign sa00_sr = sa00_sub;
-assign sa01_sr = sa01_sub;
-assign sa02_sr = sa02_sub;
-assign sa03_sr = sa03_sub;
-assign sa10_sr = sa11_sub;
-assign sa11_sr = sa12_sub;
-assign sa12_sr = sa13_sub;
-assign sa13_sr = sa10_sub;
-assign sa20_sr = sa22_sub;
-assign sa21_sr = sa23_sub;
-assign sa22_sr = sa20_sub;
-assign sa23_sr = sa21_sub;
-assign sa30_sr = sa33_sub;
-assign sa31_sr = sa30_sub;
-assign sa32_sr = sa31_sub;
-assign sa33_sr = sa32_sub;
-assign {sa00_mc, sa10_mc, sa20_mc, sa30_mc}  = mix_col(sa00_sr,sa10_sr,sa20_sr,sa30_sr);
-assign {sa01_mc, sa11_mc, sa21_mc, sa31_mc}  = mix_col(sa01_sr,sa11_sr,sa21_sr,sa31_sr);
-assign {sa02_mc, sa12_mc, sa22_mc, sa32_mc}  = mix_col(sa02_sr,sa12_sr,sa22_sr,sa32_sr);
-assign {sa03_mc, sa13_mc, sa23_mc, sa33_mc}  = mix_col(sa03_sr,sa13_sr,sa23_sr,sa33_sr);
-assign sa00_next = sa00_mc ^ w0[31:24];
-assign sa01_next = sa01_mc ^ w1[31:24];
-assign sa02_next = sa02_mc ^ w2[31:24];
-assign sa03_next = sa03_mc ^ w3[31:24];
-assign sa10_next = sa10_mc ^ w0[23:16];
-assign sa11_next = sa11_mc ^ w1[23:16];
-assign sa12_next = sa12_mc ^ w2[23:16];
-assign sa13_next = sa13_mc ^ w3[23:16];
-assign sa20_next = sa20_mc ^ w0[15:08];
-assign sa21_next = sa21_mc ^ w1[15:08];
-assign sa22_next = sa22_mc ^ w2[15:08];
-assign sa23_next = sa23_mc ^ w3[15:08];
-assign sa30_next = sa30_mc ^ w0[07:00];
-assign sa31_next = sa31_mc ^ w1[07:00];
-assign sa32_next = sa32_mc ^ w2[07:00];
-assign sa33_next = sa33_mc ^ w3[07:00];
-
-////////////////////////////////////////////////////////////////////
-//
-// Final text output
-//
-
-always @(posedge clk) text_out[127:120] <= #1 sa00_sr ^ w0[31:24];
-always @(posedge clk) text_out[095:088] <= #1 sa01_sr ^ w1[31:24];
-always @(posedge clk) text_out[063:056] <= #1 sa02_sr ^ w2[31:24];
-always @(posedge clk) text_out[031:024] <= #1 sa03_sr ^ w3[31:24];
-always @(posedge clk) text_out[119:112] <= #1 sa10_sr ^ w0[23:16];
-always @(posedge clk) text_out[087:080] <= #1 sa11_sr ^ w1[23:16];
-always @(posedge clk) text_out[055:048] <= #1 sa12_sr ^ w2[23:16];
-always @(posedge clk) text_out[023:016] <= #1 sa13_sr ^ w3[23:16];
-always @(posedge clk) text_out[111:104] <= #1 sa20_sr ^ w0[15:08];
-always @(posedge clk) text_out[079:072] <= #1 sa21_sr ^ w1[15:08];
-always @(posedge clk) text_out[047:040] <= #1 sa22_sr ^ w2[15:08];
-always @(posedge clk) text_out[015:008] <= #1 sa23_sr ^ w3[15:08];
-always @(posedge clk) text_out[103:096] <= #1 sa30_sr ^ w0[07:00];
-always @(posedge clk) text_out[071:064] <= #1 sa31_sr ^ w1[07:00];
-always @(posedge clk) text_out[039:032] <= #1 sa32_sr ^ w2[07:00];
-always @(posedge clk) text_out[007:000] <= #1 sa33_sr ^ w3[07:00];
-
-////////////////////////////////////////////////////////////////////
-//
-// Generic Functions
-//
-
-function [31:0] mix_col;
-input	[7:0]	s0,s1,s2,s3;
-reg	[7:0]	s0_o,s1_o,s2_o,s3_o;
-begin
-mix_col[31:24]=xtime(s0)^xtime(s1)^s1^s2^s3;
-mix_col[23:16]=s0^xtime(s1)^xtime(s2)^s2^s3;
-mix_col[15:08]=s0^s1^xtime(s2)^xtime(s3)^s3;
-mix_col[07:00]=xtime(s0)^s0^s1^s2^xtime(s3);
-end
-endfunction
-
-function [7:0] xtime;
-input [7:0] b; xtime={b[6:0],1'b0}^(8'h1b&{8{b[7]}});
-endfunction
-
-////////////////////////////////////////////////////////////////////
-//
-// Modules
-//
-
-aes_key_expand_128 u0(
-	.clk(		clk	),
-	.kld(		ld	),
-	.key(		key	),
-	.wo_0(		w0	),
-	.wo_1(		w1	),
-	.wo_2(		w2	),
-	.wo_3(		w3	));
-
-aes_sbox us00(	.a(	sa00	), .d(	sa00_sub	));
-aes_sbox us01(	.a(	sa01	), .d(	sa01_sub	));
-aes_sbox us02(	.a(	sa02	), .d(	sa02_sub	));
-aes_sbox us03(	.a(	sa03	), .d(	sa03_sub	));
-aes_sbox us10(	.a(	sa10	), .d(	sa10_sub	));
-aes_sbox us11(	.a(	sa11	), .d(	sa11_sub	));
-aes_sbox us12(	.a(	sa12	), .d(	sa12_sub	));
-aes_sbox us13(	.a(	sa13	), .d(	sa13_sub	));
-aes_sbox us20(	.a(	sa20	), .d(	sa20_sub	));
-aes_sbox us21(	.a(	sa21	), .d(	sa21_sub	));
-aes_sbox us22(	.a(	sa22	), .d(	sa22_sub	));
-aes_sbox us23(	.a(	sa23	), .d(	sa23_sub	));
-aes_sbox us30(	.a(	sa30	), .d(	sa30_sub	));
-aes_sbox us31(	.a(	sa31	), .d(	sa31_sub	));
-aes_sbox us32(	.a(	sa32	), .d(	sa32_sub	));
-aes_sbox us33(	.a(	sa33	), .d(	sa33_sub	));
-
-endmodule
-
-
-******************************************************** *)
+(* inputs *)
 Definition clk : bus		:= 0.
 Definition rst : bus		:= 1.
 Definition ld : bus		:= 2.
-Definition key : bus		:= 3.
-Definition text_in : bus	:= 4.
+Definition key : bus		:= 3.   (* secure *)
+Definition text_in : bus	:= 4.   (* secure *)
+
+(* start internal signals *)
 Definition w : bus		:= 5.
 Definition w0 : bus		:= 6.
 Definition w1 : bus		:= 7.
 Definition w2 : bus		:= 8.
 Definition w3 : bus		:= 9.
-Definition w4 : bus		:= 10.
-Definition text_in_r : bus	:= 11.
-Definition sa00 : bus		:= 12.
-Definition sa01: bus		:= 13.
-Definition sa02 : bus		:= 14.
-Definition sa03 : bus		:= 15.
-Definition sa10 : bus		:= 16.
-Definition sa11 : bus		:= 17.
-Definition sa12 : bus		:= 18.
-Definition sa13 : bus		:= 19.
-Definition sa20 : bus		:= 20.
-Definition sa21 : bus		:= 21.
-Definition sa22 : bus		:= 22.
-Definition sa23 : bus		:= 23.
-Definition sa30 : bus		:= 24.
-Definition sa31 : bus		:= 25.
-Definition sa32 : bus		:= 26.
-Definition sa33 : bus		:= 27.
-Definition  : bus		:= 28.
-Definition clk : bus		:= 29.
-Definition clk : bus		:= 30.
-Definition clk : bus		:= 31.
-Definition clk : bus		:= 32.
-Definition clk : bus		:= 33.
-Definition clk : bus		:= 34.
-Definition clk : bus		:= 35.
-Definition clk : bus		:= 36.
-Definition clk : bus		:= 37.
-Definition clk : bus		:= 38.
-Definition clk : bus		:= 39.
-Definition clk : bus		:= 40.
-Definition clk : bus		:= 41.
-Definition clk : bus		:= 42.
+Definition text_in_r : bus	:= 10.
+
+(* 16 bytes internal state *)
+Definition sa00 : bus		:= 11.
+Definition sa01 : bus		:= 12.
+Definition sa02 : bus		:= 13.
+Definition sa03 : bus		:= 14.
+Definition sa10 : bus		:= 15.
+Definition sa11 : bus		:= 16.
+Definition sa12 : bus		:= 17.
+Definition sa13 : bus		:= 18.
+Definition sa20 : bus		:= 19.
+Definition sa21 : bus		:= 20.
+Definition sa22 : bus		:= 21.
+Definition sa23 : bus		:= 22.
+Definition sa30 : bus		:= 23.
+Definition sa31 : bus		:= 24.
+Definition sa32 : bus		:= 25.
+Definition sa33 : bus		:= 26.
+
+Definition sa00_next : bus	:= 27.
+Definition sa01_next : bus	:= 28.
+Definition sa02_next : bus	:= 29.
+Definition sa03_next : bus	:= 30.
+Definition sa10_next : bus	:= 31.
+Definition sa11_next : bus	:= 32.
+Definition sa12_next : bus	:= 33.
+Definition sa13_next : bus	:= 34.
+Definition sa20_next : bus	:= 35.
+Definition sa21_next : bus	:= 36.
+Definition sa22_next : bus	:= 37.
+Definition sa23_next : bus	:= 38.
+Definition sa30_next : bus	:= 39.
+Definition sa31_next : bus	:= 40.
+Definition sa32_next : bus	:= 41.
+Definition sa33_next : bus	:= 42.
+
+Definition sa00_sub : bus	:= 43.
+Definition sa01_sub : bus	:= 44.
+Definition sa02_sub : bus	:= 45.
+Definition sa03_sub : bus	:= 46.
+Definition sa10_sub : bus	:= 47.
+Definition sa11_sub : bus	:= 48.
+Definition sa12_sub : bus	:= 49.
+Definition sa13_sub : bus	:= 50.
+Definition sa20_sub : bus	:= 51.
+Definition sa21_sub : bus	:= 52.
+Definition sa22_sub : bus	:= 53.
+Definition sa23_sub : bus	:= 54.
+Definition sa30_sub : bus	:= 55.
+Definition sa31_sub : bus	:= 56.
+Definition sa32_sub : bus	:= 57.
+Definition sa33_sub : bus	:= 58.
+
+Definition sa00_sr : bus	:= 59.
+Definition sa01_sr : bus	:= 60.
+Definition sa02_sr : bus	:= 61.
+Definition sa03_sr : bus	:= 62.
+Definition sa10_sr : bus	:= 63.
+Definition sa11_sr : bus	:= 64.
+Definition sa12_sr : bus	:= 65.
+Definition sa13_sr : bus	:= 66.
+Definition sa20_sr : bus	:= 67.
+Definition sa21_sr : bus	:= 68.
+Definition sa22_sr : bus	:= 69.
+Definition sa23_sr : bus	:= 70.
+Definition sa30_sr : bus	:= 71.
+Definition sa31_sr : bus	:= 72.
+Definition sa32_sr : bus	:= 73.
+Definition sa33_sr : bus	:= 74.
+
+Definition sa00_mc : bus	:= 75.
+Definition sa01_mc : bus	:= 76.
+Definition sa02_mc : bus	:= 77.
+Definition sa03_mc : bus	:= 78.
+Definition sa10_mc : bus	:= 79.
+Definition sa11_mc : bus	:= 80.
+Definition sa12_mc : bus	:= 81.
+Definition sa13_mc : bus	:= 82.
+Definition sa20_mc : bus	:= 83.
+Definition sa21_mc : bus	:= 84.
+Definition sa22_mc : bus	:= 85.
+Definition sa23_mc : bus	:= 86.
+Definition sa30_mc : bus	:= 87.
+Definition sa31_mc : bus	:= 88.
+Definition sa32_mc : bus	:= 89.
+Definition sa33_mc : bus	:= 90.
+
+
+Definition ld_r : bus		:= 91.
+Definition dcnt : bus		:= 92.
+(* end internal signals *)
+
+(* outputs *)
+Definition text_out : bus	:= 93.
+Definition done : bus		:= 94.
 
 
 
 (* a.k.a. RTL code file *)
-Definition desIn : bus      := 0.     (* #0 *)
-Definition key : bus        := 1.     (* #1 *)
-Definition decrypt : bus    := 2.     (* #2 *)
-Definition roundSel : bus   := 3.     (* #3 *)
-Definition clk : bus        := 4.     (* #4 *)
-
-Definition K_sub : bus      := 5.     (* #5 *)
-Definition IP : bus         := 6.     (* #6 *)
-Definition FP : bus         := 7.     (* #7 *)
-Definition L : bus          := 8.     (* #8 *)
-Definition R : bus          := 9.     (* #9 *)
-Definition Xin : bus        := 10.    (* #10 *)
-Definition Lout : bus       := 11.    (* #11 *)
-Definition Rout : bus       := 12.    (* #12 *)
-Definition out : bus        := 13.    (* #13 *)
-
-Definition desOut : bus     := 14.    (* #14 *)
 
 
 (* the whole list for all input/output/internal signals *)
-Definition des_code_sen : code_sen :=
-    1::1::0::0::0::1::0::0::0::0::0::0::0::0::0::nil.
-(*  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  
-    0  1  2  3  4  5  6  7  8  9 10 11 12 13 14
+Definition aes_sen_initial : code_sen :=
+    0::0::0::1::2::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::
+(*  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  
+    0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44
 *)
-    
+    0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::
+(*  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  
+   45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89
+*)
+    0::0::0::0::0::nil.
+(*  |  |  |  |  |  
+   90 91 92 93 94 
+*)
+(*
 Definition des_signals : signal :=
   outb desOut &   	(* #14 *)
   inb desIn &	        (* #0 *)
@@ -522,8 +335,126 @@ Definition des_signals : signal :=
   wireb Lout &		(* #11 *)
   wireb Rout &		(* #12 *)
   wireb out.		(* #13 *)
+*)
+
+Definition aes : code :=
+  assign_b w3 (w [127 , 96]);
+  assign_b w2 (w[ 95, 64]);
+  assign_b w1 (w[ 63, 32]);
+  assign_b w0 (w[ 31,  0]);
+
+(* // Misc Logic *)
+  nonblock_assign_ex dcnt (cond (enot (econb rst)) (econv 0)
+                                                   (cond (econb ld) (econv 10)
+                                                                   (cond (eor_bit dcnt) (eminus (econb dcnt) (econv 1)) (econb dcnt)
+                                                                   )
+                                                   )
+                               
+                           );
+  nonblock_assign_ex done   (eand (eand (enot (eor_bit (dcnt[3,1]))) (econb (dcnt[0,0]))) (enot (econb ld)));
+  nonblock_assign_ex text_in_r    (cond (econb ld) (econb text_in) (econb text_in_r));
+  nonblock_assign_b ld_r ld;
+
+(* // Initial Permutation (AddRoundKey) *)
+  nonblock_assign_ex sa33   (cond (econb ld_r) (exor_key (text_in_r[  7,  0]) (w3[ 7, 0])) (econb sa33_next));
+  nonblock_assign_ex sa23   (cond (econb ld_r) (exor_key (text_in_r[ 15,  8]) (w3[15, 8])) (econb sa23_next));
+  nonblock_assign_ex sa13   (cond (econb ld_r) (exor_key (text_in_r[ 23, 16]) (w3[23,16])) (econb sa13_next));
+  nonblock_assign_ex sa03   (cond (econb ld_r) (exor_key (text_in_r[ 31, 24]) (w3[31,24])) (econb sa03_next));
+  nonblock_assign_ex sa32   (cond (econb ld_r) (exor_key (text_in_r[ 39, 32]) (w2[ 7, 0])) (econb sa32_next));
+  nonblock_assign_ex sa22   (cond (econb ld_r) (exor_key (text_in_r[ 47, 40]) (w2[15, 8])) (econb sa22_next));
+  nonblock_assign_ex sa12   (cond (econb ld_r) (exor_key (text_in_r[ 55, 48]) (w2[23,16])) (econb sa12_next));
+  nonblock_assign_ex sa02   (cond (econb ld_r) (exor_key (text_in_r[ 63, 56]) (w2[31,24])) (econb sa02_next));
+  nonblock_assign_ex sa31   (cond (econb ld_r) (exor_key (text_in_r[ 71, 64]) (w1[ 7, 0])) (econb sa31_next));
+  nonblock_assign_ex sa21   (cond (econb ld_r) (exor_key (text_in_r[ 79, 72]) (w1[15, 8])) (econb sa21_next));
+  nonblock_assign_ex sa11   (cond (econb ld_r) (exor_key (text_in_r[ 87, 80]) (w1[23,16])) (econb sa11_next));
+  nonblock_assign_ex sa01   (cond (econb ld_r) (exor_key (text_in_r[ 95, 88]) (w1[31,24])) (econb sa01_next));
+  nonblock_assign_ex sa30   (cond (econb ld_r) (exor_key (text_in_r[103, 96]) (w0[ 7, 0])) (econb sa30_next));
+  nonblock_assign_ex sa20   (cond (econb ld_r) (exor_key (text_in_r[111,104]) (w0[15, 8])) (econb sa20_next));
+  nonblock_assign_ex sa10   (cond (econb ld_r) (exor_key (text_in_r[119,112]) (w0[23,16])) (econb sa10_next));
+  nonblock_assign_ex sa00   (cond (econb ld_r) (exor_key (text_in_r[127,120]) (w0[31,24])) (econb sa00_next));
+
+(* // Round Permutations *)
+  assign_b sa00_sr sa00_sub;
+  assign_b sa01_sr sa01_sub;
+  assign_b sa02_sr sa02_sub;
+  assign_b sa03_sr sa03_sub;
+  assign_b sa10_sr sa10_sub;
+  assign_b sa11_sr sa11_sub;
+  assign_b sa12_sr sa12_sub;
+  assign_b sa13_sr sa13_sub;
+  assign_b sa20_sr sa20_sub;
+  assign_b sa21_sr sa21_sub;
+  assign_b sa22_sr sa22_sub;
+  assign_b sa23_sr sa23_sub;
+  assign_b sa30_sr sa30_sub;
+  assign_b sa31_sr sa31_sub;
+  assign_b sa32_sr sa32_sub;
+  assign_b sa33_sr sa33_sub;  
+
+  assign_mix_col sa00_mc sa10_mc sa20_mc sa30_mc (mix_col sa00_sr sa10_sr sa20_sr sa30_sr);
+  assign_mix_col sa01_mc sa11_mc sa21_mc sa31_mc (mix_col sa01_sr sa11_sr sa21_sr sa31_sr);
+  assign_mix_col sa02_mc sa12_mc sa22_mc sa32_mc (mix_col sa03_sr sa12_sr sa22_sr sa32_sr);
+  assign_mix_col sa03_mc sa13_mc sa23_mc sa33_mc (mix_col sa03_sr sa13_sr sa23_sr sa33_sr);
+
+  assign_ex sa00_next  (exor_key sa00_mc (w0[31,24]));
+  assign_ex sa01_next  (exor_key sa01_mc (w1[31,24]));
+  assign_ex sa02_next  (exor_key sa02_mc (w2[31,24]));
+  assign_ex sa03_next  (exor_key sa03_mc (w3[31,24]));
+  assign_ex sa10_next  (exor_key sa10_mc (w0[23,16]));
+  assign_ex sa11_next  (exor_key sa11_mc (w1[23,16]));
+  assign_ex sa12_next  (exor_key sa12_mc (w2[23,16]));
+  assign_ex sa13_next  (exor_key sa13_mc (w3[23,16]));
+  assign_ex sa20_next  (exor_key sa20_mc (w0[15, 8]));
+  assign_ex sa21_next  (exor_key sa21_mc (w1[15, 8]));
+  assign_ex sa22_next  (exor_key sa22_mc (w2[15, 8]));
+  assign_ex sa23_next  (exor_key sa23_mc (w3[15, 8]));
+  assign_ex sa30_next  (exor_key sa30_mc (w0[ 7, 0]));
+  assign_ex sa31_next  (exor_key sa31_mc (w1[ 7, 0]));
+  assign_ex sa32_next  (exor_key sa32_mc (w2[ 7, 0]));
+  assign_ex sa33_next  (exor_key sa33_mc (w3[ 7, 0]));
+  
+(* // Final text output *)
+  nonblock_assign_ex (text_out[127,120])  (exor_key sa00_sr (w0[31,24]));
+  nonblock_assign_ex (text_out[ 95, 88])  (exor_key sa01_sr (w1[31,24]));
+  nonblock_assign_ex (text_out[ 63, 56])  (exor_key sa02_sr (w2[31,24]));
+  nonblock_assign_ex (text_out[ 31, 24])  (exor_key sa03_sr (w3[31,24]));
+  nonblock_assign_ex (text_out[119,112])  (exor_key sa10_sr (w0[23,16]));
+  nonblock_assign_ex (text_out[ 87, 80])  (exor_key sa11_sr (w1[23,16]));
+  nonblock_assign_ex (text_out[ 55, 48])  (exor_key sa12_sr (w2[23,16]));
+  nonblock_assign_ex (text_out[ 23, 16])  (exor_key sa13_sr (w3[23,16]));
+  nonblock_assign_ex (text_out[111,104])  (exor_key sa20_sr (w0[15, 8]));
+  nonblock_assign_ex (text_out[ 79, 72])  (exor_key sa21_sr (w1[15, 8]));
+  nonblock_assign_ex (text_out[ 47, 40])  (exor_key sa22_sr (w2[15, 8]));
+  nonblock_assign_ex (text_out[ 15,  8])  (exor_key sa23_sr (w3[15, 8]));
+  nonblock_assign_ex (text_out[103, 96])  (exor_key sa30_sr (w0[ 7, 0]));
+  nonblock_assign_ex (text_out[ 71, 64])  (exor_key sa31_sr (w1[ 7, 0]));
+  nonblock_assign_ex (text_out[ 39, 32])  (exor_key sa32_sr (w2[ 7, 0]));
+  nonblock_assign_ex (text_out[  7,  0])  (exor_key sa33_sr (w3[ 7, 0]));
+
+(* // Modules *)
+  module_inst3in w clk ld key;
+
+  assign_ex sa00_sub (sbox sa00);
+  assign_ex sa01_sub (sbox sa01);
+  assign_ex sa02_sub (sbox sa02);
+  assign_ex sa03_sub (sbox sa03);
+  assign_ex sa10_sub (sbox sa10);
+  assign_ex sa11_sub (sbox sa11);
+  assign_ex sa12_sub (sbox sa12);
+  assign_ex sa13_sub (sbox sa13);
+  assign_ex sa20_sub (sbox sa20);
+  assign_ex sa21_sub (sbox sa21);
+  assign_ex sa22_sub (sbox sa22);
+  assign_ex sa23_sub (sbox sa23);
+  assign_ex sa30_sub (sbox sa30);
+  assign_ex sa31_sub (sbox sa31);
+  assign_ex sa32_sub (sbox sa32);
+  assign_ex sa33_sub (sbox sa33)
+
+.
 
 
+(*
 Definition des : code :=
   assign_ex Lout (cond (eq (econb roundSel) (econv (0))) (econb (IP @ [33, 64])) (econb R));
   assign_ex Xin (cond (eq (econb roundSel) (econv (0))) (econb (IP @ [1, 32])) (econb L));
@@ -542,37 +473,52 @@ Definition des : code :=
   assign_ex desOut (perm (econb FP)) 
 (*  assign_ex desOut (cond (eq (econb roundSel) (econv 0)) (econb FP) (econb key))*)
 
-.
+.*)
 
-(*
+Set Printing Depth 1000.
+Set Printing Width 1000.
 
-Eval compute in des_code_sen 0.
-Eval compute in chk_code_sen 0 des des_code_sen.
-Eval compute in chk_code_sen_detail 0 des des_code_sen.
-Eval compute in chk_code_sen 1 des des_code_sen.
-Eval compute in chk_code_sen_detail 1 des des_code_sen 0.
-Eval compute in chk_code_sen_detail 1 des des_code_sen 1.
-Eval compute in chk_code_sen_detail 1 des des_code_sen 2.
-Eval compute in chk_code_sen 2 des des_code_sen.
-Eval compute in chk_code_sen_detail 2 des des_code_sen 0.
-Eval compute in chk_code_sen_detail 2 des des_code_sen 1.
-Eval compute in chk_code_sen_detail 2 des des_code_sen 2.
-Eval compute in chk_code_sen_detail 2 des des_code_sen 3.
-Eval compute in chk_code_sen 3 des des_code_sen.
-*)
+Print aes_sen_initial.
+Eval compute in aes_sen_initial.
+Eval compute in chk_code_sen 0 aes aes_sen_initial.
+Eval compute in chk_code_sen 1 aes aes_sen_initial.
+Eval compute in chk_code_sen 2 aes aes_sen_initial.
+Eval compute in chk_code_sen 3 aes aes_sen_initial.
+Eval compute in chk_code_sen 4 aes aes_sen_initial.
+Eval compute in chk_code_sen 5 aes aes_sen_initial.
+Eval compute in chk_code_sen 6 aes aes_sen_initial.
+Eval compute in chk_code_sen 7 aes aes_sen_initial.
+Eval compute in chk_code_sen 8 aes aes_sen_initial.
+Eval compute in chk_code_sen 9 aes aes_sen_initial.
+Eval compute in chk_code_sen 15 aes aes_sen_initial.
 
-Lemma stable_code_sen :  upd_code_sen des des_code_sen = des_code_sen.
+Definition aes_sen_stable : code_sen :=
+0 :: 0 :: 0 :: 1 :: 2 :: 0 :: 0 :: 0 :: 0 :: 0 :: 
+2 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 
+1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 0 :: 0 :: 0 :: 
+0 :: 0 :: 0 :: 0 :: 0 :: 0 :: 0 :: 0 :: 0 :: 0 :: 
+0 :: 0 :: 0 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 
+1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 
+1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 
+1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 
+1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 
+1 :: 0 :: 0 :: 0 :: 0 :: nil.
+
+Lemma stable_code_sen :  upd_code_sen aes aes_sen_stable = aes_sen_stable.
 Proof.
   intros. reflexivity.
 Qed.
 
 
 
-Theorem no_leaking : forall t : nat, t > 2 -> 
-  (chk_code_sen t des des_code_sen) = 1::1::0::0::0::1::0::0::0::0::0::0::0::0::0::nil.
+Theorem no_leaking : forall t : nat, t > 5 -> 
+  (chk_code_sen t aes aes_sen_initial) = aes_sen_stable.
 Proof. 
-  intros. induction H. reflexivity.
-  unfold chk_code_sen. rewrite stable_code_sen. simpl. apply IHle.
+  intros. induction H. reflexivity.  ???
+  unfold chk_code_sen. simpl. simpl. auto. 
+  destruct m.
+
+rewrite stable_code_sen. simpl. apply IHle.
 Qed.
 
 
