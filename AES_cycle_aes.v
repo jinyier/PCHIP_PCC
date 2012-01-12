@@ -514,7 +514,14 @@ Proof.
   intros. 
   induction t. reflexivity.
   unfold chk_code_sen. fold chk_code_sen. rewrite stable_code_sen_upd.
-  reflexivity. 
+  apply IHt.
+Qed.
+
+Lemma stable_state : forall t:nat, t = 5 -> chk_code_sen t aes aes_sen_stable = aes_sen_stable.
+Proof.
+  intros.
+  rewrite H. reflexivity.
+Qed.
 
 
 
