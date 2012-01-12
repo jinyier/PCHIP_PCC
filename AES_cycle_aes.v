@@ -504,18 +504,32 @@ Definition aes_sen_stable : code_sen :=
 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 
 1 :: 0 :: 0 :: 0 :: 0 :: nil.
 
-Lemma stable_code_sen :  upd_code_sen aes aes_sen_stable = aes_sen_stable.
+Lemma stable_code_sen_upd :  upd_code_sen aes aes_sen_stable = aes_sen_stable.
 Proof.
   intros. reflexivity.
 Qed.
+
+Lemma stable_code_sen_chk : forall t:nat, chk_code_sen t aes aes_sen_stable = aes_sen_stable.
+Proof.
+  intros. 
+  induction t. reflexivity.
+  unfold chk_code_sen. fold chk_code_sen. rewrite stable_code_sen_upd.
+  reflexivity. 
 
 
 
 Theorem no_leaking : forall t : nat, t > 5 -> 
   (chk_code_sen t aes aes_sen_initial) = aes_sen_stable.
 Proof. 
-  intros. induction H. reflexivity.  ???
-  unfold chk_code_sen. simpl. simpl. auto. 
+  intros. induction H. reflexivity.  
+  unfold chk_code_sen. fold chk_code_sen. 
+  induction H. reflexivity. unfold chk_code_sen. fold chk_code_sen.  
+  induction H. reflexivity. unfold chk_code_sen. fold chk_code_sen. 
+  induction H. reflexivity. unfold chk_code_sen. fold chk_code_sen. 
+  induction H. reflexivity. unfold chk_code_sen. fold chk_code_sen. 
+  induction H. reflexivity. unfold chk_code_sen. fold chk_code_sen. 
+  simpl.
+  simpl. simpl. auto. 
   destruct m.
 
 rewrite stable_code_sen. simpl. apply IHle.
