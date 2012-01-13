@@ -180,12 +180,17 @@ Fixpoint upd_code_sen (c : code) (sl : code_sen) : code_sen :=
                  end.
 
 
+(* Fixpoint chk_code_sen (n:nat) (c:code) (sl : code_sen) : code_sen := *)
+(*   match n with *)
+(*   | O => sl *)
+(*   | S n' => chk_code_sen n' c (upd_code_sen c sl) *)
+(*   end. *)
+
 Fixpoint chk_code_sen (n:nat) (c:code) (sl : code_sen) : code_sen :=
   match n with
   | O => sl
-  | S n' => chk_code_sen n' c (upd_code_sen c sl)
+  | S n' => upd_code_sen c (chk_code_sen n' c sl)
   end.
-
 
 (********************************************************* *)
 
@@ -479,18 +484,18 @@ Set Printing Depth 1000.
 Set Printing Width 1000.
 
 Print aes_sen_initial.
-Eval compute in aes_sen_initial.
-Eval compute in chk_code_sen 0 aes aes_sen_initial.
-Eval compute in chk_code_sen 1 aes aes_sen_initial.
-Eval compute in chk_code_sen 2 aes aes_sen_initial.
-Eval compute in chk_code_sen 3 aes aes_sen_initial.
-Eval compute in chk_code_sen 4 aes aes_sen_initial.
-Eval compute in chk_code_sen 5 aes aes_sen_initial.
-Eval compute in chk_code_sen 6 aes aes_sen_initial.
-Eval compute in chk_code_sen 7 aes aes_sen_initial.
-Eval compute in chk_code_sen 8 aes aes_sen_initial.
-Eval compute in chk_code_sen 9 aes aes_sen_initial.
-Eval compute in chk_code_sen 15 aes aes_sen_initial.
+Eval vm_compute in aes_sen_initial.
+Eval vm_compute in chk_code_sen 0 aes aes_sen_initial.
+Eval vm_compute in chk_code_sen 1 aes aes_sen_initial.
+Eval vm_compute in chk_code_sen 2 aes aes_sen_initial.
+Eval vm_compute in chk_code_sen 3 aes aes_sen_initial.
+Eval vm_compute in chk_code_sen 4 aes aes_sen_initial.
+Eval vm_compute in chk_code_sen 5 aes aes_sen_initial.
+Eval vm_compute in chk_code_sen 6 aes aes_sen_initial.
+Eval vm_compute in chk_code_sen 7 aes aes_sen_initial.
+Eval vm_compute in chk_code_sen 8 aes aes_sen_initial.
+Eval vm_compute in chk_code_sen 9 aes aes_sen_initial.
+Eval vm_compute in chk_code_sen 15 aes aes_sen_initial.
 
 Definition aes_sen_stable : code_sen :=
 0 :: 0 :: 0 :: 1 :: 2 :: 0 :: 0 :: 0 :: 0 :: 0 :: 
@@ -506,21 +511,22 @@ Definition aes_sen_stable : code_sen :=
 
 Lemma stable_code_sen_upd :  upd_code_sen aes aes_sen_stable = aes_sen_stable.
 Proof.
-  intros. reflexivity.
+  intros. vm_compute. reflexivity.
 Qed.
 
 Lemma stable_code_sen_chk : forall t:nat, chk_code_sen t aes aes_sen_stable = aes_sen_stable.
 Proof.
   intros. 
-  induction t. reflexivity.
-  unfold chk_code_sen. fold chk_code_sen. rewrite stable_code_sen_upd.
-  apply IHt.
+  induction t. vm_compute. reflexivity.
+  unfold chk_code_sen. fold chk_code_sen. 
+  rewrite IHt.
+  apply stable_code_sen_upd.
 Qed.
 
 Lemma stable_state : forall t:nat, t = 5 -> chk_code_sen t aes aes_sen_initial = aes_sen_stable.
 Proof.
   intros.
-  rewrite H. reflexivity.
+  rewrite H. vm_compute. reflexivity.
 Qed.
 
 Lemma stable_state_cal : (upd_code_sen aes
@@ -528,20 +534,19 @@ Lemma stable_state_cal : (upd_code_sen aes
         (upd_code_sen aes
            (upd_code_sen aes (upd_code_sen aes aes_sen_initial))))) = aes_sen_stable.
 Proof. 
-  intros. reflexivity.
+  intros. vm_compute. reflexivity.
 Qed.
+
+
 
 
 Theorem no_leaking : forall t : nat, t > 5 -> 
   (chk_code_sen t aes aes_sen_initial) = aes_sen_stable.
 Proof. 
-  intros. induction H. reflexivity.  
+  intros. induction H. vm_compute.  reflexivity.  
   unfold chk_code_sen. fold chk_code_sen. 
-  induction H. reflexivity. unfold chk_code_sen. fold chk_code_sen.  
-  induction H. reflexivity. unfold chk_code_sen. fold chk_code_sen. 
-  induction H. reflexivity. unfold chk_code_sen. fold chk_code_sen. 
-  induction H. reflexivity. unfold chk_code_sen. fold chk_code_sen.
-  rewrite stable_state_cal. apply stable_code_sen_chk.
+  rewrite IHle.
+  apply stable_code_sen_upd.
 Qed.
 
 
