@@ -228,7 +228,7 @@ Definition desOut : bus     := 14.    (* #14 *)
 
 
 (* the whole list for all input/output/internal signals *)
-Definition des_code_sen : code_sen :=
+Definition des_sen_initial : code_sen :=
     1::1::0::0::0::1::0::0::0::0::0::0::0::0::0::nil.
 (*  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  
     0  1  2  3  4  5  6  7  8  9 10 11 12 13 14
@@ -289,21 +289,34 @@ Eval compute in chk_code_sen_detail 2 des des_code_sen 3.
 Eval compute in chk_code_sen 3 des des_code_sen.
 *)
 
-Lemma stable_code_sen :  upd_code_sen des des_code_sen = des_code_sen.
+Lemma fp_list_existence :  upd_code_sen des des_sen_initial = des_sen_initial.
 Proof.
   intros. reflexivity.
 Qed.
 
 
+Definition des_sen_stable : code_sen := des_sen_initial.
 
-Theorem no_leaking : forall t : nat, t > 2 -> 
-  (chk_code_sen t des des_code_sen) = 1::1::0::0::0::1::0::0::0::0::0::0::0::0::0::nil.
+
+Theorem fp_list_accessability : forall t : nat, t > 0 -> 
+  (chk_code_sen t des des_sen_initial) = des_sen_stable.
 Proof. 
   intros. induction H. reflexivity.
-  unfold chk_code_sen. rewrite stable_code_sen. simpl. apply IHle.
+  unfold chk_code_sen. rewrite fp_list_existence. simpl. apply IHle.
 Qed.
 
+Fixpoint nth (n:nat) (l:list nat) {struct l} : nat :=
+    match n, l with
+      | O, x :: l' => x
+      | O, other => 999
+      | S m, nil => 999
+      | S m, x :: t => nth m t
+    end.
 
+Theorem no_leaking : nth desOut des_sen_stable = 0.
+Proof.
+  trivial.
+Qed.
 
 
 

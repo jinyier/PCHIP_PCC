@@ -10,7 +10,8 @@ And, hopefully, this method can be expanded to deep pipelined designs and proces
 
 Require Import Bool Arith List MinMax.
 Require Omega.
-
+Set Printing Depth 1000.
+Set Printing Width 1000.
 
 Section aes.
 (* Local Notation "[ ]" := nil : list_scope.
@@ -164,8 +165,6 @@ Inductive code :=
 Notation " c1 ; c2 " := (codepile c1 c2) (at level 50, left associativity).
 
 
-
-
 Fixpoint upd_code_sen (c : code) (sl : code_sen) : code_sen :=
                  match c with
                  | assign_ex b ex => code_sen_update sl b (expr_sen_eval ex sl)
@@ -186,15 +185,15 @@ Fixpoint upd_code_sen (c : code) (sl : code_sen) : code_sen :=
 (*   | S n' => chk_code_sen n' c (upd_code_sen c sl) *)
 (*   end. *)
 
-Fixpoint chk_code_sen (n:nat) (c:code) (sl : code_sen) : code_sen :=
-  match n with
+Fixpoint chk_code_sen (t:nat) (c:code) (sl : code_sen) : code_sen :=
+  match t with
   | O => sl
-  | S n' => upd_code_sen c (chk_code_sen n' c sl)
+  | S t' => upd_code_sen c (chk_code_sen t' c sl)
   end.
 
 (********************************************************* *)
-
-(* inputs *)
+(* Derived from aes_signals. *)
+(*inputs *)
 Definition clk : bus		:= 0.
 Definition rst : bus		:= 1.
 Definition ld : bus		:= 2.
@@ -307,10 +306,118 @@ Definition done : bus		:= 94.
 
 
 (* a.k.a. RTL code file *)
+Definition aes_signals : signal :=
+(* inputs *)
+inb clk &
+inb rst &
+inb ld  &
+inb key &   (* secure *)
+inb text_in &   (* secure *)   
 
+(* outputs *)
+outb done &
+outb text_out &
+
+(* internal signals *)
+wireb w  &
+wireb w0 &
+wireb w1 &
+wireb w2 &
+wireb w3 &
+regb text_in_r &  
+regb text_out  & 
+
+(* 16 bytes internal state *)
+regb sa00 &
+regb sa01 &
+regb sa02 &
+regb sa03 &
+regb sa10 &
+regb sa11 &
+regb sa12 &
+regb sa13 &
+regb sa20 &
+regb sa21 &
+regb sa22 &
+regb sa23 &
+regb sa30 &
+regb sa31 &
+regb sa32 &
+regb sa33 &
+
+wireb sa00_next &
+wireb sa01_next &
+wireb sa02_next &
+wireb sa03_next &
+wireb sa10_next &
+wireb sa11_next &
+wireb sa12_next &
+wireb sa13_next &
+wireb sa20_next &
+wireb sa21_next &
+wireb sa22_next &
+wireb sa23_next &
+wireb sa30_next &
+wireb sa31_next &
+wireb sa32_next &
+wireb sa33_next &
+
+wireb sa00_sub &
+wireb sa01_sub &
+wireb sa02_sub &
+wireb sa03_sub &
+wireb sa10_sub &
+wireb sa11_sub &
+wireb sa12_sub &
+wireb sa13_sub &
+wireb sa20_sub &
+wireb sa21_sub &
+wireb sa22_sub &
+wireb sa23_sub &
+wireb sa30_sub &
+wireb sa31_sub &
+wireb sa32_sub &
+wireb sa33_sub &
+
+wireb sa00_sr  &
+wireb sa01_sr  &
+wireb sa02_sr  &
+wireb sa03_sr  &
+wireb sa10_sr  &
+wireb sa11_sr  &
+wireb sa12_sr  &
+wireb sa13_sr  &
+wireb sa20_sr  &
+wireb sa21_sr  &
+wireb sa22_sr  &
+wireb sa23_sr  &
+wireb sa30_sr  &
+wireb sa31_sr  &
+wireb sa32_sr  &
+wireb sa33_sr  &
+
+wireb sa00_mc  &
+wireb sa01_mc  &
+wireb sa02_mc  &
+wireb sa03_mc  &
+wireb sa10_mc  &
+wireb sa11_mc  &
+wireb sa12_mc  &
+wireb sa13_mc  &
+wireb sa20_mc  &
+wireb sa21_mc  &
+wireb sa22_mc  &
+wireb sa23_mc  &
+wireb sa30_mc  &
+wireb sa31_mc  &
+wireb sa32_mc  &
+wireb sa33_mc  &
+
+regb ld_r &
+regb dcnt.
 
 (* the whole list for all input/output/internal signals *)
-Definition aes_sen_initial : code_sen :=
+Definition aes_initial_list : code_sen :=
     0::0::0::1::2::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::0::
 (*  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  
     0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44
@@ -323,25 +430,10 @@ Definition aes_sen_initial : code_sen :=
 (*  |  |  |  |  |  
    90 91 92 93 94 
 *)
-(*
-Definition des_signals : signal :=
-  outb desOut &   	(* #14 *)
-  inb desIn &	        (* #0 *)
-  inb key &             (* #1 *) 
-  inb decrypt &         (* #2 *)
-  inb roundSel &        (* #3 *)
-  inb clk &             (* #4 *)
-  wireb K_sub &		(* #5 *)
-  wireb IP &		(* #6 *)
-  wireb FP &		(* #7 *)
-  regb L &		(* #8 *)
-  regb R &		(* #9 *)
-  wireb Xin &		(* #10 *)
-  wireb Lout &		(* #11 *)
-  wireb Rout &		(* #12 *)
-  wireb out.		(* #13 *)
-*)
 
+
+(* ************************************************************** *)
+(* AES code *)
 Definition aes : code :=
   assign_b w3 (w [127 , 96]);
   assign_b w2 (w[ 95, 64]);
@@ -455,34 +547,9 @@ Definition aes : code :=
   assign_ex sa31_sub (sbox sa31);
   assign_ex sa32_sub (sbox sa32);
   assign_ex sa33_sub (sbox sa33)
-
 .
 
-
-(*
-Definition des : code :=
-  assign_ex Lout (cond (eq (econb roundSel) (econv (0))) (econb (IP @ [33, 64])) (econb R));
-  assign_ex Xin (cond (eq (econb roundSel) (econv (0))) (econb (IP @ [1, 32])) (econb L));
-
-  assign_ex Rout (exor (econb Xin) (econb out));
-  assign_ex FP (eapp Rout Lout);
-  
-  module_inst2in out Lout K_sub;
-
-  nonblock_assign_ex L (econb Lout);
-  nonblock_assign_ex R (econb Rout);
-
-  module_inst3in K_sub key roundSel decrypt;
-
-  assign_ex IP (perm (econb desIn));
-  assign_ex desOut (perm (econb FP)) 
-(*  assign_ex desOut (cond (eq (econb roundSel) (econv 0)) (econb FP) (econb key))*)
-
-.*)
-
-Set Printing Depth 1000.
-Set Printing Width 1000.
-
+(* Stabalization testing procedure 
 Print aes_sen_initial.
 Eval vm_compute in aes_sen_initial.
 Eval vm_compute in chk_code_sen 0 aes aes_sen_initial.
@@ -496,8 +563,9 @@ Eval vm_compute in chk_code_sen 7 aes aes_sen_initial.
 Eval vm_compute in chk_code_sen 8 aes aes_sen_initial.
 Eval vm_compute in chk_code_sen 9 aes aes_sen_initial.
 Eval vm_compute in chk_code_sen 15 aes aes_sen_initial.
+*)
 
-Definition aes_sen_stable : code_sen :=
+Definition aes_stable_list : code_sen :=
 0 :: 0 :: 0 :: 1 :: 2 :: 0 :: 0 :: 0 :: 0 :: 0 :: 
 2 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 
 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 0 :: 0 :: 0 :: 
@@ -509,47 +577,49 @@ Definition aes_sen_stable : code_sen :=
 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 1 :: 
 1 :: 0 :: 0 :: 0 :: 0 :: nil.
 
-Lemma stable_code_sen_upd :  upd_code_sen aes aes_sen_stable = aes_sen_stable.
+Lemma aes_sen_stable :  upd_code_sen aes aes_stable_list = aes_stable_list.
 Proof.
   intros. vm_compute. reflexivity.
 Qed.
 
-Lemma stable_code_sen_chk : forall t:nat, chk_code_sen t aes aes_sen_stable = aes_sen_stable.
+Lemma stable_code_sen_chk : forall t:nat, chk_code_sen t aes aes_stable_list = aes_stable_list.
 Proof.
   intros. 
   induction t. vm_compute. reflexivity.
   unfold chk_code_sen. fold chk_code_sen. 
   rewrite IHt.
-  apply stable_code_sen_upd.
+  apply aes_sen_stable.
 Qed.
 
-Lemma stable_state : forall t:nat, t = 5 -> chk_code_sen t aes aes_sen_initial = aes_sen_stable.
+Lemma stable_state : forall t:nat, t = 5 -> chk_code_sen t aes aes_initial_list = aes_stable_list.
 Proof.
   intros.
   rewrite H. vm_compute. reflexivity.
 Qed.
 
-Lemma stable_state_cal : (upd_code_sen aes
-     (upd_code_sen aes
-        (upd_code_sen aes
-           (upd_code_sen aes (upd_code_sen aes aes_sen_initial))))) = aes_sen_stable.
-Proof. 
-  intros. vm_compute. reflexivity.
-Qed.
-
-
-
-
-Theorem no_leaking : forall t : nat, t > 5 -> 
-  (chk_code_sen t aes aes_sen_initial) = aes_sen_stable.
+Theorem fp_list_accessability : forall t : nat, t > 5 -> 
+  (chk_code_sen t aes aes_initial_list) = aes_stable_list.
 Proof. 
   intros. induction H. vm_compute.  reflexivity.  
   unfold chk_code_sen. fold chk_code_sen. 
   rewrite IHle.
-  apply stable_code_sen_upd.
+  apply aes_sen_stable.
 Qed.
 
+Fixpoint nth (n:nat) (l:list nat) {struct l} : nat :=
+    match n, l with
+      | O, x :: l' => x
+      | O, other => 999
+      | S m, nil => 999
+      | S m, x :: t => nth m t
+    end.
 
+Theorem no_leaking_1 : nth done aes_stable_list = 0.
+Proof.
+  trivial.
+Qed.
 
-
-
+Theorem no_leaking_2 : nth text_out aes_stable_list = 0.
+Proof.
+  trivial.
+Qed.
